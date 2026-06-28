@@ -135,14 +135,41 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // On mount: restore user from localStorage + fetch cart
+  // On mount: verify session token before restoring user.
   useEffect(() => {
-    const storedUser = authService.getStoredUser();
-    if (storedUser) {
-      dispatch({ type: 'SET_USER', payload: apiUserToUser(storedUser) });
-      refreshCart();
-    }
-    dispatch({ type: 'SET_AUTH_LOADING', payload: false });
+    let active = true;
+
+    const bootstrapAuth = async () => {
+      localStorage.removeItem('auth_token');
+      localStorage.removeItem('auth_user');
+
+      if (!authService.isAuthenticated()) {
+        if (active) {
+          dispatch({ type: 'SET_USER', payload: null });
+          dispatch({ type: 'CLEAR_CART' });
+          dispatch({ type: 'SET_AUTH_LOADING', payload: false });
+        }
+        return;
+      }
+
+      try {
+        const user = await authService.me();
+        if (!active) return;
+        dispatch({ type: 'SET_USER', payload: apiUserToUser(user) });
+        await refreshCart();
+      } catch {
+        authService.clearAuth();
+        if (active) {
+          dispatch({ type: 'SET_USER', payload: null });
+          dispatch({ type: 'CLEAR_CART' });
+        }
+      } finally {
+        if (active) dispatch({ type: 'SET_AUTH_LOADING', payload: false });
+      }
+    };
+
+    bootstrapAuth();
+    return () => { active = false; };
   }, [refreshCart]);
 
   return (

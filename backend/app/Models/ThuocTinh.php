@@ -17,7 +17,22 @@ class ThuocTinh extends Model
 
     public static string $idPrefix = 'TT';
 
-    protected $fillable = ['ma_tt', 'ten_tt'];
+    protected $fillable = [
+        'ma_tt',
+        'ten_tt',
+        'slug',
+        'loai_hien_thi',
+        'trang_thai',
+        'mo_ta',
+        'ngay_tao',
+        'ngay_cap_nhat',
+    ];
+
+    protected $casts = [
+        'trang_thai' => 'boolean',
+        'ngay_tao' => 'datetime',
+        'ngay_cap_nhat' => 'datetime',
+    ];
 
     public function giaTriThuocTinhs()
     {

@@ -19,8 +19,12 @@ class DonHang extends Model
 
     protected $fillable = [
         'ma_dh', 'ma_kh', 'ngay_dat', 'tam_tinh', 'phi_van_chuyen',
-        'ma_km', 'ma_khuyen_mai', 'so_tien_giam', 'tong_tien',
-        'phuong_thuc_tt', 'dia_chi_giao', 'trang_thai', 'ghi_chu',
+        'loai_khu_vuc_giao', 'shipping_zone', 'ma_km', 'ma_khuyen_mai', 'so_tien_giam', 'tong_tien',
+        'phuong_thuc_tt', 'trang_thai_thanh_toan', 'noi_dung_chuyen_khoan', 'qr_code_url',
+        'khach_bao_da_chuyen_at', 'thanh_toan_xac_nhan_at', 'thanh_toan_xac_nhan_boi',
+        'dia_chi_giao', 'province_type', 'ma_tinh_thanh', 'ma_quan_huyen', 'ma_phuong_xa',
+        'tinh_thanh', 'quan_huyen', 'phuong_xa', 'dia_chi_chi_tiet',
+        'trang_thai', 'ghi_chu',
     ];
 
     protected $casts = [
@@ -29,6 +33,8 @@ class DonHang extends Model
         'tam_tinh' => 'decimal:2',
         'phi_van_chuyen' => 'decimal:2',
         'so_tien_giam' => 'decimal:2',
+        'khach_bao_da_chuyen_at' => 'datetime',
+        'thanh_toan_xac_nhan_at' => 'datetime',
     ];
 
     public function khachHang()

@@ -1,49 +1,140 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import type { ReactNode } from 'react';
 import { useNavigate } from 'react-router';
 import { useForm } from 'react-hook-form';
-import { CreditCard, Truck, CheckCircle, Loader2 } from 'lucide-react';
-import { useCart, useAuth } from '../../store/AppContext';
-import { orderService, type PlaceOrderPayload } from '../../services/orderService';
+import { CheckCircle, CreditCard, Loader2, QrCode, Truck } from 'lucide-react';
+import { toast } from 'sonner';
+import { useAuth, useCart } from '../../store/AppContext';
+import { commerceService } from '../../services/commerceService';
+import { orderService, type AdministrativeUnit, type PlaceOrderPayload, type ShippingCalculation } from '../../services/orderService';
 import { Button } from '../ui/button';
 import { ImageWithFallback } from '../figma/ImageWithFallback';
-import { toast } from 'sonner';
-import { commerceService } from '../../services/commerceService';
 
-const formatPrice = (p: number) =>
-  new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(p);
+const formatPrice = (price: number) =>
+  new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(price);
 
 interface CheckoutForm {
   ten_nguoi_nhan: string;
   so_dien_thoai: string;
-  dia_chi_giao: string;
-  phuong_thuc_tt: 'cod' | 'banking';
+  province_type: 'hcm' | 'hanoi' | 'other' | '';
+  district_code: string;
+  ward_code: string;
+  address_detail: string;
+  phuong_thuc_tt: 'cod' | 'bank_transfer_qr';
   ghi_chu?: string;
 }
 
 export function CheckoutPage() {
   const navigate = useNavigate();
-  const { cart, subtotal, shipping, total, refreshCart } = useCart();
+  const { cart, subtotal, refreshCart } = useCart();
   const { user } = useAuth();
   const [placing, setPlacing] = useState(false);
   const [couponCode, setCouponCode] = useState('');
   const [coupon, setCoupon] = useState<{ code: string; discount: number } | null>(null);
   const [checkingCoupon, setCheckingCoupon] = useState(false);
+  const [shippingResult, setShippingResult] = useState<ShippingCalculation | null>(null);
+  const [shippingLoading, setShippingLoading] = useState(false);
+  const [provinces, setProvinces] = useState<AdministrativeUnit[]>([]);
+  const [districts, setDistricts] = useState<AdministrativeUnit[]>([]);
+  const [wards, setWards] = useState<AdministrativeUnit[]>([]);
 
-  const { register, handleSubmit, formState: { errors }, watch } = useForm<CheckoutForm>({
+  const { register, handleSubmit, formState: { errors }, watch, setValue } = useForm<CheckoutForm>({
     defaultValues: {
       ten_nguoi_nhan: user?.name || '',
       so_dien_thoai: user?.phone || '',
-      dia_chi_giao: '',
+      province_type: '',
+      district_code: '',
+      ward_code: '',
+      address_detail: '',
       phuong_thuc_tt: 'cod',
     },
   });
 
   const paymentMethod = watch('phuong_thuc_tt');
+  const provinceType = watch('province_type');
+  const districtCode = watch('district_code');
+  const wardCode = watch('ward_code');
+  const addressDetail = watch('address_detail');
+  const shippingFee = shippingResult?.shipping_fee ?? 0;
+  const total = Math.max(0, subtotal + shippingFee - (coupon?.discount ?? 0));
+  const isOtherProvince = provinceType === 'other';
+  const addressComplete = Boolean(provinceType && addressDetail.trim() && (isOtherProvince || (districtCode && wardCode)));
+  const canSubmit = addressComplete && shippingResult?.valid && shippingResult.shipping_fee !== null;
+
+  useEffect(() => {
+    orderService.getProvinces()
+      .then(setProvinces)
+      .catch(() => toast.error('Không thể tải danh sách tỉnh/thành phố.'));
+  }, []);
+
+  useEffect(() => {
+    setDistricts([]);
+    setWards([]);
+    setValue('district_code', '');
+    setValue('ward_code', '');
+    if (!provinceType || isOtherProvince) return;
+
+    orderService.getDistricts(provinceType)
+      .then(setDistricts)
+      .catch(() => toast.error('Không thể tải danh sách quận/huyện.'));
+  }, [provinceType, isOtherProvince, setValue]);
+
+  useEffect(() => {
+    setWards([]);
+    setValue('ward_code', '');
+    if (!districtCode) return;
+
+    orderService.getWards(districtCode)
+      .then(setWards)
+      .catch(() => toast.error('Không thể tải danh sách phường/xã.'));
+  }, [districtCode, setValue]);
+
+  useEffect(() => {
+    if (!addressComplete) {
+      setShippingResult({
+        valid: false,
+        area_type: null,
+        area_label: null,
+        shipping_fee: null,
+        base_shipping_fee: null,
+        free_shipping_applied: false,
+        message: 'Vui lòng chọn đầy đủ địa chỉ giao hàng để tính phí vận chuyển.',
+      });
+      return;
+    }
+
+    const timer = window.setTimeout(async () => {
+      setShippingLoading(true);
+      try {
+        setShippingResult(await orderService.calculateShipping({
+          province_type: provinceType,
+          district_code: districtCode,
+          ward_code: wardCode,
+          address_detail: addressDetail,
+        }));
+      } catch (error: any) {
+        setShippingResult({
+          valid: false,
+          area_type: null,
+          area_label: null,
+          shipping_fee: null,
+          free_shipping_applied: false,
+          message: error.response?.data?.message ?? 'Không thể tính phí vận chuyển.',
+        });
+      } finally {
+        setShippingLoading(false);
+      }
+    }, 350);
+
+    return () => window.clearTimeout(timer);
+  }, [addressComplete, provinceType, districtCode, wardCode, addressDetail]);
+
+  const cartCount = useMemo(() => cart.reduce((sum, item) => sum + item.quantity, 0), [cart]);
 
   if (cart.length === 0) {
     return (
       <div className="max-w-7xl mx-auto px-4 py-20 text-center">
-        <h2>Giỏ hàng trống</h2>
+        <h2 className="text-2xl font-semibold">Giỏ hàng trống</h2>
         <Button className="mt-4" onClick={() => navigate('/products')} style={{ backgroundColor: '#ea5c21', borderColor: '#ea5c21' }}>
           Tiếp tục mua sắm
         </Button>
@@ -52,24 +143,33 @@ export function CheckoutPage() {
   }
 
   const onSubmit = async (data: CheckoutForm) => {
+    if (!canSubmit) {
+      toast.error('Vui lòng chọn đầy đủ địa chỉ giao hàng để tính phí vận chuyển.');
+      return;
+    }
+
     setPlacing(true);
     try {
       const payload: PlaceOrderPayload = {
         ten_nguoi_nhan: data.ten_nguoi_nhan,
         so_dien_thoai: data.so_dien_thoai,
-        dia_chi_giao: data.dia_chi_giao,
+        province_type: data.province_type as 'hcm' | 'hanoi' | 'other',
+        district_code: data.province_type === 'other' ? undefined : data.district_code,
+        ward_code: data.province_type === 'other' ? undefined : data.ward_code,
+        address_detail: data.address_detail,
         phuong_thuc_tt: data.phuong_thuc_tt,
         ghi_chu: data.ghi_chu || undefined,
         coupon_code: coupon?.code,
       };
+
       const { order } = await orderService.placeOrder(payload);
-      // Refresh cart (will be empty after order)
       await refreshCart();
       toast.success(`Đặt hàng thành công! Mã đơn: ${order.id}`);
-      navigate('/account', { state: { orderPlaced: order.id } });
-    } catch (err: unknown) {
-      const error = err as { response?: { data?: { message?: string } } };
-      toast.error(error?.response?.data?.message ?? 'Đặt hàng thất bại. Vui lòng thử lại.');
+      navigate(order.payment_method === 'bank_transfer_qr' ? `/account/orders/${order.id}/qr-payment` : '/account', {
+        state: { orderPlaced: order.id },
+      });
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message ?? 'Đặt hàng thất bại. Vui lòng thử lại.');
     } finally {
       setPlacing(false);
     }
@@ -77,7 +177,6 @@ export function CheckoutPage() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
-      {/* Steps */}
       <div className="flex items-center gap-2 text-sm text-muted-foreground mb-6">
         <span className="text-foreground font-medium">Giỏ hàng</span>
         <span>→</span>
@@ -88,59 +187,58 @@ export function CheckoutPage() {
 
       <form onSubmit={handleSubmit(onSubmit)}>
         <div className="grid lg:grid-cols-3 gap-6">
-          {/* Left: Shipping + Payment */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Shipping Info */}
-            <div className="bg-white rounded-xl border border-border p-6">
+            <section className="bg-white rounded-xl border border-border p-6">
               <div className="flex items-center gap-2 mb-4">
                 <Truck className="w-5 h-5" style={{ color: '#ea5c21' }} />
                 <h3 className="font-semibold">Thông tin giao hàng</h3>
               </div>
               <div className="grid sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium mb-1">Họ và tên *</label>
-                  <input
-                    {...register('ten_nguoi_nhan', { required: 'Vui lòng nhập họ tên' })}
-                    className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:border-orange-400"
-                    placeholder="Nguyễn Văn A"
-                  />
-                  {errors.ten_nguoi_nhan && <p className="text-xs text-red-500 mt-1">{errors.ten_nguoi_nhan.message}</p>}
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Số điện thoại *</label>
+                <TextInput label="Họ và tên *" error={errors.ten_nguoi_nhan?.message}>
+                  <input {...register('ten_nguoi_nhan', { required: 'Vui lòng nhập họ tên' })} className="w-full px-3 py-2 text-sm border rounded-lg" />
+                </TextInput>
+                <TextInput label="Số điện thoại *" error={errors.so_dien_thoai?.message}>
                   <input
                     {...register('so_dien_thoai', {
                       required: 'Vui lòng nhập số điện thoại',
                       pattern: { value: /^[0-9]{10,11}$/, message: 'Số điện thoại không hợp lệ' },
                     })}
-                    className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:border-orange-400"
-                    placeholder="0912 345 678"
+                    className="w-full px-3 py-2 text-sm border rounded-lg"
                   />
-                  {errors.so_dien_thoai && <p className="text-xs text-red-500 mt-1">{errors.so_dien_thoai.message}</p>}
-                </div>
-                <div className="sm:col-span-2">
-                  <label className="block text-sm font-medium mb-1">Địa chỉ giao hàng *</label>
-                  <input
-                    {...register('dia_chi_giao', { required: 'Vui lòng nhập địa chỉ' })}
-                    className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:border-orange-400"
-                    placeholder="Số nhà, tên đường, phường/xã, quận/huyện, tỉnh/thành"
-                  />
-                  {errors.dia_chi_giao && <p className="text-xs text-red-500 mt-1">{errors.dia_chi_giao.message}</p>}
-                </div>
-                <div className="sm:col-span-2">
-                  <label className="block text-sm font-medium mb-1">Ghi chú (tuỳ chọn)</label>
-                  <textarea
-                    {...register('ghi_chu')}
-                    rows={2}
-                    className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:border-orange-400 resize-none"
-                    placeholder="Giao giờ hành chính, gọi trước khi giao..."
-                  />
-                </div>
+                </TextInput>
+                <TextInput label="Tỉnh/thành phố *" error={errors.province_type?.message}>
+                  <select {...register('province_type', { required: 'Vui lòng chọn tỉnh/thành phố' })} className="w-full px-3 py-2 text-sm border rounded-lg bg-white">
+                    <option value="">Chọn tỉnh/thành phố</option>
+                    {provinces.map((province) => <option key={province.code} value={province.code}>{province.name}</option>)}
+                  </select>
+                </TextInput>
+                {!isOtherProvince && (
+                  <>
+                    <TextInput label="Quận/huyện *" error={errors.district_code?.message}>
+                      <select {...register('district_code', { validate: (value) => isOtherProvince || Boolean(value) || 'Vui lòng chọn quận/huyện' })} disabled={!provinceType} className="w-full px-3 py-2 text-sm border rounded-lg bg-white disabled:bg-gray-100">
+                        <option value="">Chọn quận/huyện</option>
+                        {districts.map((district) => <option key={district.code} value={district.code}>{district.name}</option>)}
+                      </select>
+                    </TextInput>
+                    <TextInput label="Phường/xã *" error={errors.ward_code?.message}>
+                      <select {...register('ward_code', { validate: (value) => isOtherProvince || Boolean(value) || 'Vui lòng chọn phường/xã' })} disabled={!districtCode} className="w-full px-3 py-2 text-sm border rounded-lg bg-white disabled:bg-gray-100">
+                        <option value="">Chọn phường/xã</option>
+                        {wards.map((ward) => <option key={ward.code} value={ward.code}>{ward.name}</option>)}
+                      </select>
+                    </TextInput>
+                  </>
+                )}
+                <TextInput label="Địa chỉ nhà/số nhà/tên đường *" error={errors.address_detail?.message}>
+                  <input {...register('address_detail', { required: 'Vui lòng nhập địa chỉ nhà/số nhà/tên đường' })} placeholder="VD: 12 Nguyễn Trãi, hẻm 5, chung cư ABC..." className="w-full px-3 py-2 text-sm border rounded-lg" />
+                </TextInput>
+                <label className="block sm:col-span-2">
+                  <span className="block text-sm font-medium mb-1">Ghi chú</span>
+                  <textarea {...register('ghi_chu')} rows={2} className="w-full px-3 py-2 text-sm border rounded-lg resize-none" />
+                </label>
               </div>
-            </div>
+            </section>
 
-            {/* Payment Method */}
-            <div className="bg-white rounded-xl border border-border p-6">
+            <section className="bg-white rounded-xl border border-border p-6">
               <div className="flex items-center gap-2 mb-4">
                 <CreditCard className="w-5 h-5" style={{ color: '#ea5c21' }} />
                 <h3 className="font-semibold">Phương thức thanh toán</h3>
@@ -148,68 +246,44 @@ export function CheckoutPage() {
               <div className="space-y-3">
                 {[
                   { value: 'cod', label: 'Thanh toán khi nhận hàng (COD)', icon: '💵', desc: 'Trả tiền mặt khi nhận được hàng' },
-                  { value: 'banking', label: 'Chuyển khoản ngân hàng', icon: '🏦', desc: 'Chuyển khoản trước, xác nhận qua email' },
-                ].map(opt => (
-                  <label
-                    key={opt.value}
-                    className={`flex items-start gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all
-                      ${paymentMethod === opt.value ? 'border-orange-400 bg-orange-50' : 'border-border hover:border-orange-200'}`}
-                  >
-                    <input
-                      type="radio"
-                      value={opt.value}
-                      {...register('phuong_thuc_tt')}
-                      className="mt-0.5"
-                    />
+                  { value: 'bank_transfer_qr', label: 'Chuyển khoản QR', icon: '🏦', desc: 'Quét mã QR, chuyển đúng số tiền và nội dung đơn hàng' },
+                ].map((option) => (
+                  <label key={option.value} className={`flex items-start gap-3 p-4 rounded-xl border-2 cursor-pointer ${paymentMethod === option.value ? 'border-orange-400 bg-orange-50' : 'border-border hover:border-orange-200'}`}>
+                    <input type="radio" value={option.value} {...register('phuong_thuc_tt')} className="mt-0.5" />
                     <div>
-                      <p className="text-sm font-medium">{opt.icon} {opt.label}</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">{opt.desc}</p>
+                      <p className="text-sm font-medium">{option.icon} {option.label}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">{option.desc}</p>
                     </div>
                   </label>
                 ))}
               </div>
-
-              {paymentMethod === 'banking' && (
-                <div className="mt-4 p-4 bg-blue-50 rounded-xl border border-blue-200">
-                  <p className="text-sm font-medium text-blue-800 mb-2">🏦 Thông tin chuyển khoản:</p>
-                  <div className="text-xs text-blue-700 space-y-1">
-                    <p>Ngân hàng: <strong>Vietcombank</strong></p>
-                    <p>Số tài khoản: <strong>1234567890</strong></p>
-                    <p>Chủ tài khoản: <strong>TIENPROSPORT CO., LTD</strong></p>
-                    <p>Nội dung: <strong>Thanh toan don hang [Mã đơn]</strong></p>
-                  </div>
-                  <p className="text-xs text-blue-600 mt-2 italic">* Đơn hàng sẽ được xác nhận sau khi chúng tôi nhận được thanh toán.</p>
+              {paymentMethod === 'bank_transfer_qr' && (
+                <div className="mt-4 p-4 bg-blue-50 rounded-xl border border-blue-200 text-sm text-blue-800">
+                  Sau khi đặt hàng, hệ thống sẽ tạo mã QR riêng cho đơn này với đúng số tiền và nội dung chuyển khoản.
                 </div>
               )}
-            </div>
+            </section>
           </div>
 
-          {/* Right: Order summary */}
-          <div>
+          <aside>
             <div className="bg-white rounded-xl border border-border p-4 space-y-3 sticky top-4">
               <h3 className="font-semibold flex items-center gap-2">
                 <CheckCircle className="w-4 h-4 text-green-500" />
-                Đơn hàng ({cart.length} sản phẩm)
+                Đơn hàng ({cartCount} sản phẩm)
               </h3>
 
               <div className="space-y-3 max-h-60 overflow-y-auto">
-                {cart.map(item => (
+                {cart.map((item) => (
                   <div key={item.variantId} className="flex gap-3">
                     <div className="w-14 h-14 rounded-lg overflow-hidden bg-gray-50 shrink-0">
                       <ImageWithFallback src={item.productImage ?? ''} alt={item.productName} className="w-full h-full object-cover" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-xs font-medium line-clamp-2">{item.productName}</p>
-                      {item.attributes.length > 0 && (
-                        <p className="text-xs text-muted-foreground">
-                          {item.attributes.map(a => a.value).join(' / ')}
-                        </p>
-                      )}
+                      {item.attributes.length > 0 && <p className="text-xs text-muted-foreground">{item.attributes.map((attribute) => attribute.value).join(' / ')}</p>}
                       <div className="flex justify-between mt-1">
                         <span className="text-xs text-muted-foreground">×{item.quantity}</span>
-                        <span className="text-xs font-semibold" style={{ color: '#ea5c21' }}>
-                          {formatPrice(item.price * item.quantity)}
-                        </span>
+                        <span className="text-xs font-semibold" style={{ color: '#ea5c21' }}>{formatPrice(item.price * item.quantity)}</span>
                       </div>
                     </div>
                   </div>
@@ -220,7 +294,7 @@ export function CheckoutPage() {
                 <div>
                   <label className="font-medium">Mã khuyến mãi</label>
                   <div className="flex gap-2 mt-1">
-                    <input value={couponCode} onChange={(e) => { setCouponCode(e.target.value.toUpperCase()); setCoupon(null); }} placeholder="Nhập mã" className="flex-1 border rounded-lg px-3 py-2 text-sm" />
+                    <input value={couponCode} onChange={(event) => { setCouponCode(event.target.value.toUpperCase()); setCoupon(null); }} placeholder="Nhập mã" className="flex-1 border rounded-lg px-3 py-2 text-sm" />
                     <Button type="button" variant="outline" disabled={checkingCoupon || !couponCode} onClick={async () => {
                       setCheckingCoupon(true);
                       try {
@@ -230,52 +304,51 @@ export function CheckoutPage() {
                       } catch (error: any) {
                         setCoupon(null);
                         toast.error(error.response?.data?.errors?.coupon_code?.[0] ?? error.response?.data?.message ?? 'Mã không hợp lệ.');
-                      } finally { setCheckingCoupon(false); }
+                      } finally {
+                        setCheckingCoupon(false);
+                      }
                     }}>Áp dụng</Button>
                   </div>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Tạm tính</span>
-                  <span>{formatPrice(subtotal)}</span>
-                </div>
+                <div className="flex justify-between"><span className="text-muted-foreground">Tạm tính</span><span>{formatPrice(subtotal)}</span></div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Vận chuyển</span>
-                  <span className={shipping === 0 ? 'text-green-600' : ''}>
-                    {shipping === 0 ? 'Miễn phí' : formatPrice(shipping)}
+                  <span className={shippingFee === 0 && shippingResult?.valid ? 'text-green-600' : ''}>
+                    {shippingLoading ? 'Đang tính...' : shippingResult?.shipping_fee === null ? 'Chưa đủ địa chỉ' : shippingFee === 0 ? 'Miễn phí' : formatPrice(shippingFee)}
                   </span>
                 </div>
+                {shippingResult?.valid && shippingResult.base_shipping_fee !== null && shippingResult.free_shipping_applied && (
+                  <p className="text-xs text-muted-foreground line-through">Phí gốc: {formatPrice(shippingResult.base_shipping_fee ?? 0)}</p>
+                )}
+                {shippingResult?.area_label && <p className="text-xs text-muted-foreground">Khu vực: {shippingResult.area_label}</p>}
+                {shippingResult?.message && <p className={`text-xs ${shippingResult.valid ? 'text-green-600' : 'text-orange-600'}`}>{shippingResult.message}</p>}
                 {coupon && <div className="flex justify-between text-green-600"><span>Giảm giá ({coupon.code})</span><span>-{formatPrice(coupon.discount)}</span></div>}
                 <div className="flex justify-between font-bold text-base border-t border-border pt-2">
                   <span>Tổng cộng</span>
-                  <span style={{ color: '#ea5c21' }}>{formatPrice(Math.max(0, total - (coupon?.discount ?? 0)))}</span>
+                  <span style={{ color: '#ea5c21' }}>{formatPrice(total)}</span>
                 </div>
               </div>
 
-              <Button
-                type="submit"
-                className="w-full gap-2 text-white"
-                disabled={placing}
-                style={{ backgroundColor: '#ea5c21', borderColor: '#ea5c21' }}
-              >
-                {placing ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Đang đặt hàng...
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle className="w-4 h-4" />
-                    Xác nhận đặt hàng
-                  </>
-                )}
+              <Button type="submit" className="w-full gap-2 text-white" disabled={placing || !canSubmit} style={{ backgroundColor: '#ea5c21', borderColor: '#ea5c21' }}>
+                {placing ? <><Loader2 className="w-4 h-4 animate-spin" />Đang đặt hàng...</> : <><QrCode className="w-4 h-4" />Xác nhận đặt hàng</>}
               </Button>
               <p className="text-xs text-center text-muted-foreground">
-                Bằng cách đặt hàng, bạn đồng ý với điều khoản sử dụng của chúng tôi.
+                Backend sẽ validate địa chỉ hành chính và tính lại phí ship khi tạo đơn.
               </p>
             </div>
-          </div>
+          </aside>
         </div>
       </form>
     </div>
+  );
+}
+
+function TextInput({ label, error, children }: { label: string; error?: string; children: ReactNode }) {
+  return (
+    <label className="block">
+      <span className="block text-sm font-medium mb-1">{label}</span>
+      {children}
+      {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
+    </label>
   );
 }

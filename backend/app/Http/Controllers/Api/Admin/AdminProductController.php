@@ -11,6 +11,7 @@ use App\Models\ThuocTinh;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -58,11 +59,24 @@ class AdminProductController extends Controller
     {
         return response()->json([
             'attributes' => ThuocTinh::with('giaTriThuocTinhs')
+                ->where('trang_thai', true)
                 ->orderBy('ten_tt')
                 ->get()
                 ->map(fn (ThuocTinh $attribute) => [
+                    'id' => $attribute->ma_tt,
                     'name' => $attribute->ten_tt,
-                    'values' => $attribute->giaTriThuocTinhs->pluck('gia_tri')->sort()->values(),
+                    'slug' => $attribute->slug,
+                    'type' => $attribute->loai_hien_thi ?? 'select',
+                    'values' => $attribute->giaTriThuocTinhs
+                        ->where('trang_thai', true)
+                        ->sortBy([['thu_tu', 'asc'], ['gia_tri', 'asc']])
+                        ->map(fn (GiaTriThuocTinh $value) => [
+                            'id' => $value->ma_gt,
+                            'value' => $value->gia_tri,
+                            'slug' => $value->slug,
+                            'color_code' => $value->ma_mau,
+                        ])
+                        ->values(),
                 ]),
         ]);
     }
@@ -270,10 +284,25 @@ class AdminProductController extends Controller
                 ->all();
 
             $values = collect($attributes)->map(function ($attribute) {
-                $type = ThuocTinh::firstOrCreate(['ten_tt' => $attribute['name']]);
+                $type = ThuocTinh::firstOrCreate(
+                    ['ten_tt' => $attribute['name']],
+                    [
+                        'slug' => Str::slug($attribute['name']),
+                        'loai_hien_thi' => 'select',
+                        'trang_thai' => true,
+                        'ngay_tao' => now(),
+                        'ngay_cap_nhat' => now(),
+                    ]
+                );
                 return GiaTriThuocTinh::firstOrCreate([
                     'ma_tt' => $type->ma_tt,
                     'gia_tri' => $attribute['value'],
+                ], [
+                    'slug' => Str::slug($attribute['value']),
+                    'thu_tu' => 0,
+                    'trang_thai' => true,
+                    'ngay_tao' => now(),
+                    'ngay_cap_nhat' => now(),
                 ]);
             });
 
@@ -352,6 +381,8 @@ class AdminProductController extends Controller
                 'attributes' => $variant->giaTriThuocTinhs->map(fn ($value) => [
                     'name' => $value->thuocTinh?->ten_tt,
                     'value' => $value->gia_tri,
+                    'type' => $value->thuocTinh?->loai_hien_thi ?? 'select',
+                    'color_code' => $value->ma_mau,
                 ])->values(),
             ])->values(),
         ]);

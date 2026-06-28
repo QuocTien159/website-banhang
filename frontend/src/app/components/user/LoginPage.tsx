@@ -26,7 +26,7 @@ export function LoginPage() {
       if (success) {
         toast.success('Đăng nhập thành công!');
         // Re-fetch user to determine role
-        const storedRaw = localStorage.getItem('auth_user');
+        const storedRaw = sessionStorage.getItem('auth_user');
         const storedUser = storedRaw ? JSON.parse(storedRaw) : null;
         navigate(storedUser?.role === 'admin' ? '/admin' : from, { replace: true });
       } else {
@@ -60,18 +60,6 @@ export function LoginPage() {
 
           <h2 className="text-2xl font-bold text-gray-900 mb-1.5 tracking-tight">Đăng nhập</h2>
           <p className="text-sm text-gray-500 mb-6 font-medium">Chào mừng bạn quay lại! Vui lòng nhập thông tin.</p>
-
-          {/* Demo credentials */}
-          <div className="mb-6 p-3 bg-orange-50/50 rounded-2xl border border-orange-100/50">
-            <p className="text-xs font-semibold text-orange-800 mb-1.5 flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse"></span>
-              Tài khoản dùng thử:
-            </p>
-            <div className="text-xs text-orange-700/80 space-y-1.5 font-medium">
-              <p>👤 Khách: <strong>user@example.com</strong> / <strong>user123</strong></p>
-              <p>🔑 Quản trị: <strong>admin@tienprosport.vn</strong> / <strong>admin123</strong></p>
-            </div>
-          </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">
             <div className="space-y-1.5">

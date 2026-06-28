@@ -19,8 +19,11 @@ use App\Http\Controllers\Api\ReturnRequestController;
 use App\Http\Controllers\Api\Admin\AdminPromotionController;
 use App\Http\Controllers\Api\Admin\AdminReviewController;
 use App\Http\Controllers\Api\Admin\AdminAnnouncementController;
+use App\Http\Controllers\Api\Admin\AdminAttributeController;
 use App\Http\Controllers\Api\Admin\AdminInventoryController;
 use App\Http\Controllers\Api\Admin\AdminReturnRequestController;
+use App\Http\Controllers\Api\ShippingPaymentController;
+use App\Http\Controllers\Api\Admin\AdminPaymentShippingSettingController;
 
 /*
 |----------------------------------------------------------------------
@@ -60,6 +63,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get ('orders',     [OrderController::class, 'index']);
     Route::get ('orders/{id}',[OrderController::class, 'show']);
     Route::post('orders',     [OrderController::class, 'store']);
+    Route::put ('orders/{id}/bank-transfer-paid', [OrderController::class, 'markBankTransferPaid']);
+    Route::post('shipping/calculate', [ShippingPaymentController::class, 'calculate']);
+    Route::get ('payment/bank-info', [ShippingPaymentController::class, 'bankInfo']);
+    Route::get ('address/provinces', [ShippingPaymentController::class, 'provinces']);
+    Route::get ('address/districts', [ShippingPaymentController::class, 'districts']);
+    Route::get ('address/wards', [ShippingPaymentController::class, 'wards']);
 
     // Wishlist
     Route::get   ('wishlist',           [WishlistController::class, 'index']);
@@ -100,6 +109,15 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put   ('categories/{id}',         [AdminCategoryController::class, 'update']);
         Route::delete('categories/{id}',         [AdminCategoryController::class, 'destroy']);
 
+        Route::get   ('attributes',                  [AdminAttributeController::class, 'index']);
+        Route::post  ('attributes',                  [AdminAttributeController::class, 'store']);
+        Route::get   ('attributes/{id}',             [AdminAttributeController::class, 'show']);
+        Route::put   ('attributes/{id}',             [AdminAttributeController::class, 'update']);
+        Route::delete('attributes/{id}',             [AdminAttributeController::class, 'destroy']);
+        Route::post  ('attributes/{id}/values',      [AdminAttributeController::class, 'storeValue']);
+        Route::put   ('attributes/{id}/values/{valueId}', [AdminAttributeController::class, 'updateValue']);
+        Route::delete('attributes/{id}/values/{valueId}', [AdminAttributeController::class, 'destroyValue']);
+
         Route::apiResource('promotions', AdminPromotionController::class)->except(['show']);
         Route::get('reviews', [AdminReviewController::class, 'index']);
         Route::put('reviews/{id}/status', [AdminReviewController::class, 'moderate']);
@@ -126,6 +144,9 @@ Route::middleware('auth:sanctum')->group(function () {
         // Orders
         Route::get('orders',                     [AdminOrderController::class, 'index']);
         Route::put('orders/{id}/status',         [AdminOrderController::class, 'updateStatus']);
+        Route::put('orders/{id}/payment-status', [AdminOrderController::class, 'updatePaymentStatus']);
+        Route::get('payment-shipping-settings',  [AdminPaymentShippingSettingController::class, 'show']);
+        Route::put('payment-shipping-settings',  [AdminPaymentShippingSettingController::class, 'update']);
 
         // Customers
         Route::get('customers',                  [AdminCustomerController::class, 'index']);

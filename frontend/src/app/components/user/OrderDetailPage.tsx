@@ -27,6 +27,14 @@ const STATUS_LABELS: Record<string, string> = {
   cancelled: 'Đã hủy',
 };
 
+const PAYMENT_STATUS_LABELS: Record<string, string> = {
+  cod_pending: 'Thanh toán COD',
+  pending_payment: 'Chờ thanh toán',
+  waiting_admin_confirmation: 'Chờ admin xác nhận',
+  paid: 'Đã thanh toán',
+  payment_not_received: 'Chưa nhận được tiền',
+};
+
 type ReviewFormState = {
   item: OrderItem;
   rating: number;
@@ -293,7 +301,13 @@ export function OrderDetailPage() {
           </div>
           <div className="bg-gray-50 rounded-xl p-4">
             <p className="font-medium mb-2">Thanh toán</p>
-            <p>{order.payment_method === 'cod' ? 'Thanh toán khi nhận hàng' : 'Chuyển khoản'}</p>
+            <p>{order.payment_method === 'cod' ? 'Thanh toán khi nhận hàng' : 'Chuyển khoản QR'}</p>
+            {order.payment_status && <p className="text-muted-foreground mt-1">Trạng thái: {PAYMENT_STATUS_LABELS[order.payment_status] ?? order.payment_status}</p>}
+            {order.payment_method === 'bank_transfer_qr' && order.payment_status !== 'paid' && (
+              <Button size="sm" variant="outline" className="mt-3" onClick={() => navigate(`/account/orders/${order.id}/qr-payment`)}>
+                Xem mã QR thanh toán
+              </Button>
+            )}
             {order.note && <p className="text-muted-foreground mt-1">Ghi chú: {order.note}</p>}
           </div>
         </div>

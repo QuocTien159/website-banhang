@@ -22,6 +22,14 @@ const STATUS_LABELS: Record<string, string> = {
   cancelled: 'Đã hủy',
 };
 
+const PAYMENT_STATUS_LABELS: Record<string, string> = {
+  cod_pending: 'COD',
+  pending_payment: 'Chờ thanh toán',
+  waiting_admin_confirmation: 'Chờ admin xác nhận',
+  paid: 'Đã thanh toán',
+  payment_not_received: 'Chưa nhận được tiền',
+};
+
 const STATUS_FLOW = ['pending', 'confirmed', 'shipping', 'delivered'];
 
 type RawAdminOrder = Record<string, any>;
@@ -33,6 +41,9 @@ interface AdminOrder {
   status: string;
   total: number;
   paymentMethod: string;
+  paymentStatus: string;
+  bankTransferContent?: string;
+  customerPaidAt?: string | null;
   createdAt: string | null;
   createdAtFormatted?: string | null;
   productCount: number;
@@ -76,6 +87,9 @@ const normalizeOrder = (raw: RawAdminOrder): AdminOrder => {
     status: raw.status ?? raw.trang_thai ?? 'pending',
     total: Number(raw.total ?? raw.tong_tien ?? 0),
     paymentMethod: raw.payment_method ?? raw.payment ?? raw.phuong_thuc_tt ?? '',
+    paymentStatus: raw.payment_status ?? raw.trang_thai_thanh_toan ?? '',
+    bankTransferContent: raw.bank_transfer_content ?? raw.noi_dung_chuyen_khoan ?? '',
+    customerPaidAt: raw.customer_paid_at ?? raw.khach_bao_da_chuyen_at ?? null,
     createdAt: raw.created_at ?? raw.createdAt ?? raw.order_date ?? raw.ngay_dat ?? raw.date ?? null,
     createdAtFormatted: raw.created_at_formatted ?? raw.date ?? null,
     productCount: Number(raw.total_quantity ?? raw.items_count ?? raw.item_count ?? productCountFromItems ?? 0),
@@ -125,6 +139,19 @@ export function AdminOrders() {
     }
   };
 
+  const handlePaymentUpdate = async (orderId: string, paymentStatus: 'paid' | 'payment_not_received') => {
+    setUpdating(orderId);
+    try {
+      await adminService.updateOrderPaymentStatus(orderId, paymentStatus);
+      setOrders((previous) => previous.map((order) => order.id === orderId ? { ...order, paymentStatus } : order));
+      toast.success(paymentStatus === 'paid' ? 'Đã xác nhận thanh toán.' : 'Đã đánh dấu chưa nhận được tiền.');
+    } catch (error: any) {
+      toast.error(error.response?.data?.message ?? 'Không thể cập nhật thanh toán.');
+    } finally {
+      setUpdating(null);
+    }
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-3">
@@ -135,7 +162,7 @@ export function AdminOrders() {
       <div className="bg-white rounded-xl border border-border p-4 flex flex-wrap gap-3">
         <input
           type="text"
-          placeholder="Tìm mã đơn, tên khách..."
+          placeholder="Tìm mã đơn, tên khách, nội dung chuyển khoản..."
           value={search}
           onChange={(event) => setSearch(event.target.value)}
           className="flex-1 min-w-48 px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:border-orange-400"
@@ -169,6 +196,7 @@ export function AdminOrders() {
             {orders.map((order) => {
               const nextStatus = getNextStatus(order.status);
               const productCount = Number.isFinite(order.productCount) ? order.productCount : 0;
+              const isQrOrder = order.paymentMethod === 'bank_transfer_qr' || order.paymentMethod === 'banking';
 
               return (
                 <div key={order.id} className="p-4 hover:bg-gray-50 transition-colors">
@@ -180,8 +208,13 @@ export function AdminOrders() {
                           {STATUS_LABELS[order.status] ?? order.status}
                         </span>
                         <span className="text-xs text-muted-foreground">
-                          {order.paymentMethod === 'cod' ? 'COD' : order.paymentMethod === 'banking' ? 'Chuyển khoản' : 'Không xác định'}
+                          {order.paymentMethod === 'cod' ? 'COD' : isQrOrder ? 'QR chuyển khoản' : 'Không xác định'}
                         </span>
+                        {order.paymentStatus && (
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-blue-50 text-blue-700">
+                            {PAYMENT_STATUS_LABELS[order.paymentStatus] ?? order.paymentStatus}
+                          </span>
+                        )}
                       </div>
                       <p className="text-xs text-muted-foreground mt-1">
                         {order.customerName}{order.customerEmail ? ` · ${order.customerEmail}` : ''}
@@ -189,8 +222,14 @@ export function AdminOrders() {
                       <p className="text-xs text-muted-foreground">
                         {formatDateSafe(order.createdAt, order.createdAtFormatted)} · {productCount} sản phẩm
                       </p>
+                      {isQrOrder && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Nội dung CK: <span className="font-medium">{order.bankTransferContent || 'Chưa có'}</span>
+                          {order.customerPaidAt ? ` · Khách báo: ${formatDateSafe(order.customerPaidAt)}` : ''}
+                        </p>
+                      )}
                     </div>
-                    <div className="flex items-center gap-3 shrink-0">
+                    <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
                       <span className="text-sm font-bold" style={{ color: '#ea5c21' }}>{formatPrice(order.total)}</span>
                       {nextStatus && order.status !== 'cancelled' && (
                         <button
@@ -210,6 +249,24 @@ export function AdminOrders() {
                         >
                           Hủy
                         </button>
+                      )}
+                      {isQrOrder && order.paymentStatus === 'waiting_admin_confirmation' && (
+                        <>
+                          <button
+                            onClick={() => handlePaymentUpdate(order.id, 'paid')}
+                            disabled={updating === order.id}
+                            className="text-xs px-3 py-1.5 rounded-lg border border-green-200 text-green-600 hover:bg-green-50 disabled:opacity-50"
+                          >
+                            Đã nhận tiền
+                          </button>
+                          <button
+                            onClick={() => handlePaymentUpdate(order.id, 'payment_not_received')}
+                            disabled={updating === order.id}
+                            className="text-xs px-3 py-1.5 rounded-lg border border-yellow-200 text-yellow-700 hover:bg-yellow-50 disabled:opacity-50"
+                          >
+                            Chưa nhận tiền
+                          </button>
+                        </>
                       )}
                     </div>
                   </div>

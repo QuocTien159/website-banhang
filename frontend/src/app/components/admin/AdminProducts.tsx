@@ -85,7 +85,10 @@ export function AdminProducts() {
   useEffect(() => {
     Promise.all([adminService.getCategories(), adminService.getProductOptions()]).then(([categoryData, optionData]) => {
       setCategories(categoryData);
-      setAttributeOptions(Object.fromEntries(optionData.attributes.map((attribute) => [attribute.name, attribute.values])));
+      setAttributeOptions(Object.fromEntries(optionData.attributes.map((attribute) => [
+        attribute.name,
+        attribute.values.map((value) => typeof value === 'string' ? value : value.value),
+      ])));
     });
   }, []);
 

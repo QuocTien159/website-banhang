@@ -17,7 +17,24 @@ class GiaTriThuocTinh extends Model
 
     public static string $idPrefix = 'GT';
 
-    protected $fillable = ['ma_gt', 'ma_tt', 'gia_tri'];
+    protected $fillable = [
+        'ma_gt',
+        'ma_tt',
+        'gia_tri',
+        'slug',
+        'ma_mau',
+        'thu_tu',
+        'trang_thai',
+        'ngay_tao',
+        'ngay_cap_nhat',
+    ];
+
+    protected $casts = [
+        'thu_tu' => 'integer',
+        'trang_thai' => 'boolean',
+        'ngay_tao' => 'datetime',
+        'ngay_cap_nhat' => 'datetime',
+    ];
 
     public function thuocTinh()
     {

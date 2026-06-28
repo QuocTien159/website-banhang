@@ -5,8 +5,8 @@ namespace Tests\Feature;
 use App\Models\BienTheSanPham;
 use App\Models\DonHang;
 use App\Models\KhachHang;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Hash;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -35,17 +35,39 @@ class PurchaseFlowTest extends TestCase
         $this->postJson('/api/orders', [
             'ten_nguoi_nhan' => 'Khách hàng Demo',
             'so_dien_thoai' => '0909123456',
-            'dia_chi_giao' => '123 Nguyễn Huệ, Quận 1, TP.HCM',
+            'province_type' => 'hcm',
+            'district_code' => '760',
+            'ward_code' => '26734',
+            'address_detail' => '123 Nguyễn Huệ',
             'phuong_thuc_tt' => 'cod',
             'ghi_chu' => 'Giao giờ hành chính',
         ])
             ->assertCreated()
             ->assertJsonPath('order.status', 'pending')
+            ->assertJsonPath('order.shipping_info.province_type', 'hcm')
             ->assertJsonPath('order.items.0.variant_id', $variant->ma_bt);
 
         $this->assertSame($stockBefore - 2, $variant->fresh()->so_luong_ton);
         $this->assertDatabaseCount('chi_tiet_gio_hang', 0);
         $this->assertSame(1, DonHang::where('ma_kh', $customer->ma_kh)->count());
+    }
+
+    public function test_order_requires_valid_administrative_address(): void
+    {
+        $customer = KhachHang::where('email', 'user@example.com')->firstOrFail();
+        $variant = BienTheSanPham::where('so_luong_ton', '>', 1)->firstOrFail();
+        Sanctum::actingAs($customer);
+        $this->postJson('/api/cart/items', ['variant_id' => $variant->ma_bt, 'quantity' => 1])->assertOk();
+
+        $this->postJson('/api/orders', [
+            'ten_nguoi_nhan' => 'Khách hàng Demo',
+            'so_dien_thoai' => '0909123456',
+            'province_type' => 'hcm',
+            'district_code' => '490',
+            'ward_code' => '20194',
+            'address_detail' => '123 Sai Quan Hệ',
+            'phuong_thuc_tt' => 'cod',
+        ])->assertUnprocessable();
     }
 
     public function test_out_of_stock_variant_cannot_be_added_to_cart(): void

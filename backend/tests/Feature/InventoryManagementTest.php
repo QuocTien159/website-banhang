@@ -137,7 +137,10 @@ class InventoryManagementTest extends TestCase
         $orderId = $this->postJson('/api/orders', [
             'ten_nguoi_nhan' => 'Khách kiểm thử',
             'so_dien_thoai' => '0909123456',
-            'dia_chi_giao' => '123 Test',
+            'province_type' => 'hcm',
+            'district_code' => '760',
+            'ward_code' => '26734',
+            'address_detail' => '123 Test',
             'phuong_thuc_tt' => 'cod',
         ])
             ->assertCreated()

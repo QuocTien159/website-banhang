@@ -41,8 +41,14 @@ class CommerceFeaturesTest extends TestCase
         $this->postJson('/api/cart/items', ['variant_id' => $variant->ma_bt, 'quantity' => 2])->assertOk();
         $this->postJson('/api/promotions/validate', ['code' => 'SPORT20'])->assertOk();
         $order = $this->postJson('/api/orders', [
-            'ten_nguoi_nhan' => 'Demo', 'so_dien_thoai' => '0909123456', 'dia_chi_giao' => 'TP HCM',
-            'phuong_thuc_tt' => 'cod', 'coupon_code' => 'SPORT20',
+            'ten_nguoi_nhan' => 'Demo',
+            'so_dien_thoai' => '0909123456',
+            'province_type' => 'hcm',
+            'district_code' => '760',
+            'ward_code' => '26734',
+            'address_detail' => '123 Nguyễn Huệ',
+            'phuong_thuc_tt' => 'cod',
+            'coupon_code' => 'SPORT20',
         ])->assertCreated()->json('order');
         $this->assertDatabaseHas('lich_su_khuyen_mai', ['ma_kh' => $user->ma_kh, 'ma_dh' => $order['id']]);
 

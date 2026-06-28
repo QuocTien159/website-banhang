@@ -15,19 +15,28 @@ interface AuthResponse {
   token: string;
 }
 
+const TOKEN_KEY = 'auth_token';
+const USER_KEY = 'auth_user';
+
 export const authService = {
-  /** Đăng nhập */
+  clearAuth(): void {
+    sessionStorage.removeItem(TOKEN_KEY);
+    sessionStorage.removeItem(USER_KEY);
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(USER_KEY);
+  },
+
   async login(email: string, mat_khau: string): Promise<AuthResponse> {
     const { data } = await apiClient.post<AuthResponse>('/auth/login', {
       email,
       mat_khau,
     });
-    localStorage.setItem('auth_token', data.token);
-    localStorage.setItem('auth_user', JSON.stringify(data.user));
+    this.clearAuth();
+    sessionStorage.setItem(TOKEN_KEY, data.token);
+    sessionStorage.setItem(USER_KEY, JSON.stringify(data.user));
     return data;
   },
 
-  /** Đăng ký */
   async register(payload: {
     ten_kh: string;
     email: string;
@@ -36,46 +45,44 @@ export const authService = {
     dien_thoai?: string;
   }): Promise<AuthResponse> {
     const { data } = await apiClient.post<AuthResponse>('/auth/register', payload);
-    localStorage.setItem('auth_token', data.token);
-    localStorage.setItem('auth_user', JSON.stringify(data.user));
+    this.clearAuth();
+    sessionStorage.setItem(TOKEN_KEY, data.token);
+    sessionStorage.setItem(USER_KEY, JSON.stringify(data.user));
     return data;
   },
 
-  /** Đăng xuất */
   async logout(): Promise<void> {
     try {
-      await apiClient.post('/auth/logout');
+      if (this.isAuthenticated()) {
+        await apiClient.post('/auth/logout');
+      }
     } finally {
-      localStorage.removeItem('auth_token');
-      localStorage.removeItem('auth_user');
+      this.clearAuth();
     }
   },
 
-  /** Lấy thông tin user hiện tại từ API */
   async me(): Promise<ApiUser> {
     const { data } = await apiClient.get<{ user: ApiUser }>('/auth/me');
-    localStorage.setItem('auth_user', JSON.stringify(data.user));
+    sessionStorage.setItem(USER_KEY, JSON.stringify(data.user));
     return data.user;
   },
 
-  /** Lấy user từ localStorage (không gọi API) */
   getStoredUser(): ApiUser | null {
-    const raw = localStorage.getItem('auth_user');
+    const raw = sessionStorage.getItem(USER_KEY);
     if (!raw) return null;
     try {
       return JSON.parse(raw) as ApiUser;
     } catch {
+      this.clearAuth();
       return null;
     }
   },
 
-  /** Kiểm tra đã đăng nhập chưa */
   isAuthenticated(): boolean {
-    return !!localStorage.getItem('auth_token');
+    return !!sessionStorage.getItem(TOKEN_KEY);
   },
 
-  /** Lấy token */
   getToken(): string | null {
-    return localStorage.getItem('auth_token');
+    return sessionStorage.getItem(TOKEN_KEY);
   },
 };
