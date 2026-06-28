@@ -20,7 +20,7 @@ class KhachHang extends Authenticatable
 
     protected $fillable = [
         'ma_kh', 'ten_kh', 'email', 'mat_khau',
-        'dien_thoai', 'vai_tro', 'trang_thai', 'ngay_tao',
+        'dien_thoai', 'vai_tro', 'role', 'trang_thai', 'ngay_tao',
     ];
 
     protected $hidden = ['mat_khau', 'remember_token'];
@@ -65,6 +65,29 @@ class KhachHang extends Authenticatable
     // Helper
     public function isAdmin(): bool
     {
-        return $this->vai_tro === true;
+        return $this->role === 'admin' || $this->vai_tro === true;
+    }
+
+    public function isStaff(): bool
+    {
+        return $this->role === 'staff';
+    }
+
+    public function hasRole(string ...$roles): bool
+    {
+        return in_array($this->roleName(), $roles, true);
+    }
+
+    public function roleName(): string
+    {
+        if ($this->vai_tro === true) {
+            return 'admin';
+        }
+
+        if ($this->role && $this->role !== 'admin') {
+            return $this->role;
+        }
+
+        return 'customer';
     }
 }

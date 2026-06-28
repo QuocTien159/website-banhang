@@ -12,7 +12,8 @@ class AdminCustomerController extends Controller
     public function index(Request $request)
     {
         $query = KhachHang::withCount('donHangs')
-            ->where('vai_tro', false); // only customers, not admins
+            ->where('role', 'customer')
+            ->where('vai_tro', false);
 
         if ($search = $request->input('search')) {
             $query->where(function ($q) use ($search) {
@@ -51,7 +52,10 @@ class AdminCustomerController extends Controller
     /** PUT /api/admin/customers/{id}/status — Khóa/mở tài khoản */
     public function toggleStatus(Request $request, string $id)
     {
-        $customer = KhachHang::where('ma_kh', $id)->where('vai_tro', false)->firstOrFail();
+        $customer = KhachHang::where('ma_kh', $id)
+            ->where('role', 'customer')
+            ->where('vai_tro', false)
+            ->firstOrFail();
         $customer->update(['trang_thai' => !$customer->trang_thai]);
 
         $action = $customer->trang_thai ? 'mở khóa' : 'khóa';

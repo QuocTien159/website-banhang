@@ -11,7 +11,7 @@ class AdminMiddleware
     {
         $user = $request->user();
 
-        if (!$user || !$user->vai_tro) {
+        if (!$user || !$user->isAdmin()) {
             return response()->json([
                 'message' => 'Bạn không có quyền truy cập tài nguyên này.',
             ], 403);

@@ -25,6 +25,7 @@ class AuthController extends Controller
             'mat_khau'   => Hash::make($data['mat_khau']),
             'dien_thoai' => $data['dien_thoai'] ?? null,
             'vai_tro'    => false,
+            'role'        => 'customer',
             'trang_thai' => true,
             'ngay_tao'   => now(),
         ]);
@@ -90,7 +91,7 @@ class AuthController extends Controller
             'name'      => $user->ten_kh,
             'email'     => $user->email,
             'phone'     => $user->dien_thoai,
-            'role'      => $user->vai_tro ? 'admin' : 'user',
+            'role'      => $user->roleName(),
             'status'    => $user->trang_thai,
             'join_date' => $user->ngay_tao?->format('Y-m-d'),
         ];

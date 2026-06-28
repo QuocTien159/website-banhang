@@ -5,7 +5,7 @@ export interface ApiUser {
   name: string;
   email: string;
   phone: string | null;
-  role: 'user' | 'admin';
+  role: 'customer' | 'staff' | 'admin';
   status: boolean;
   join_date: string;
 }

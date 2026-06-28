@@ -165,6 +165,25 @@ export interface AdminAttributePayload {
   values?: Omit<AdminAttributeValue, 'id' | 'attribute_id' | 'created_at'>[];
 }
 
+export interface AdminStaff {
+  id: string;
+  name: string;
+  email: string;
+  phone?: string | null;
+  role: 'staff' | 'admin';
+  active: boolean;
+  created_at?: string | null;
+}
+
+export interface AdminStaffPayload {
+  name: string;
+  email: string;
+  phone?: string;
+  password?: string;
+  role: 'staff' | 'admin';
+  active: boolean;
+}
+
 export const orderService = {
   async getOrders(): Promise<ApiOrder[]> {
     const { data } = await apiClient.get<ApiOrder[]>('/orders');
@@ -376,6 +395,22 @@ export const adminService = {
   },
   async toggleCustomerStatus(customerId: string) {
     const { data } = await apiClient.put(`/admin/customers/${customerId}/status`);
+    return data;
+  },
+  async getStaff(params: Record<string, string | number> = {}) {
+    const { data } = await apiClient.get('/admin/staff', { params });
+    return data;
+  },
+  async createStaff(payload: AdminStaffPayload) {
+    const { data } = await apiClient.post('/admin/staff', payload);
+    return data;
+  },
+  async updateStaff(id: string, payload: AdminStaffPayload) {
+    const { data } = await apiClient.put(`/admin/staff/${id}`, payload);
+    return data;
+  },
+  async toggleStaffStatus(id: string) {
+    const { data } = await apiClient.put(`/admin/staff/${id}/status`);
     return data;
   },
 };

@@ -22,7 +22,7 @@ class AdminReportController extends Controller
             ->get());
         $totalOrders = DonHang::count();
         $pendingOrders = DonHang::where('trang_thai', 'pending')->count();
-        $totalCustomers = KhachHang::where('vai_tro', false)->count();
+        $totalCustomers = KhachHang::where('role', 'customer')->where('vai_tro', false)->count();
         $totalProducts = SanPham::where('trang_thai', 'active')->count();
         $lowStockCount = BienTheSanPham::where('trang_thai', true)
             ->whereColumn('so_luong_ton', '<=', 'nguong_canh_bao_ton')

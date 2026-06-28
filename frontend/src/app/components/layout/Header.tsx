@@ -125,7 +125,7 @@ export function Header() {
                       <p className="text-xs text-gray-500 truncate mt-0.5">{user?.email}</p>
                     </div>
                     <DropdownMenuSeparator className="opacity-50" />
-                    {user?.role === 'admin' && (
+                    {(user?.role === 'admin' || user?.role === 'staff') && (
                       <DropdownMenuItem onClick={() => navigate('/admin')} className="rounded-lg cursor-pointer py-2.5 font-medium">
                         <LayoutDashboard className="w-4 h-4 mr-3 text-gray-400" />
                         Quản trị hệ thống

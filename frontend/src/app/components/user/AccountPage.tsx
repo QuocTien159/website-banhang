@@ -77,7 +77,7 @@ export function AccountPage() {
                 {user.name.charAt(0).toUpperCase()}
               </div>
               <h3 className="font-semibold">{user.name}</h3>
-              <span className={`mt-1 text-xs px-2 py-0.5 rounded-full ${user.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-orange-100 text-orange-700'}`}>
+              <span className={`mt-1 text-xs px-2 py-0.5 rounded-full ${user.role === 'admin' ? 'bg-purple-100 text-purple-700' : user.role === 'staff' ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'}`}>
                 {user.role === 'admin' ? '👑 Quản trị viên' : '👤 Khách hàng'}
               </span>
             </div>

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router';
 import {
   AlertTriangle,
@@ -52,12 +52,15 @@ const websiteItems = [
   { label: 'Khuyến mãi', href: '/admin/promotions', icon: Gift },
   { label: 'Đánh giá', href: '/admin/reviews', icon: MessageSquare },
   { label: 'Khách hàng', href: '/admin/customers', icon: Users },
+  { label: 'Nhân viên', href: '/admin/staff', icon: Users },
 ];
 
+const adminOnlyPaths = ['/admin', '/admin/promotions', '/admin/announcements', '/admin/payment-shipping', '/admin/customers', '/admin/staff'];
+const staffHome = '/admin/products';
 const allItems = [...mainItems, ...inventoryItems, ...orderItems, ...configItems, ...websiteItems];
 
 export function AdminLayout() {
-  const { user, logout } = useAuth();
+  const { user, logout, isLoading } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -66,8 +69,35 @@ export function AdminLayout() {
   const [configOpen, setConfigOpen] = useState(() => configItems.some((item) => location.pathname.startsWith(item.href)));
   const [websiteOpen, setWebsiteOpen] = useState(() => websiteItems.some((item) => location.pathname.startsWith(item.href)));
 
+  const isAdmin = user?.role === 'admin';
+  const isStaff = user?.role === 'staff';
+  const isAllowedForRole = (href: string, exact?: boolean) => {
+    if (isAdmin) return true;
+    if (!isStaff) return false;
+    return !adminOnlyPaths.some((path) => (path === '/admin' ? exact && href === '/admin' : href.startsWith(path)));
+  };
+  const visibleMainItems = mainItems.filter((item) => isAllowedForRole(item.href, item.exact));
+  const visibleConfigItems = configItems.filter((item) => isAllowedForRole(item.href, item.exact));
+  const visibleWebsiteItems = websiteItems.filter((item) => isAllowedForRole(item.href, item.exact));
+  const visibleAllItems = [...visibleMainItems, ...inventoryItems, ...orderItems, ...visibleConfigItems, ...visibleWebsiteItems];
+
+  useEffect(() => {
+    if (isLoading) return;
+    if (!user) {
+      navigate('/login', { replace: true, state: { from: location.pathname } });
+      return;
+    }
+    if (!isAdmin && !isStaff) {
+      navigate('/', { replace: true });
+      return;
+    }
+    if (isStaff && (location.pathname === '/admin' || adminOnlyPaths.some((path) => path !== '/admin' && location.pathname.startsWith(path)))) {
+      navigate(staffHome, { replace: true });
+    }
+  }, [isLoading, user, isAdmin, isStaff, location.pathname, navigate]);
+
   const isActive = (href: string, exact?: boolean) => exact ? location.pathname === href : location.pathname.startsWith(href);
-  const currentLabel = allItems.find((item) => isActive(item.href, item.exact))?.label ?? 'Admin';
+  const currentLabel = visibleAllItems.find((item) => isActive(item.href, item.exact))?.label ?? 'Admin';
 
   const renderItem = (item: typeof allItems[number], child = false) => (
     <Link
@@ -92,6 +122,7 @@ export function AdminLayout() {
     open: boolean,
     setOpen: (value: boolean | ((current: boolean) => boolean)) => void,
   ) => {
+    if (items.length === 0) return null;
     const Icon = icon;
     const active = items.some((item) => isActive(item.href));
 
@@ -133,11 +164,11 @@ export function AdminLayout() {
         </div>
 
         <nav className="flex-1 py-4 space-y-1 px-2 overflow-y-auto min-h-0">
-          {mainItems.map((item) => renderItem(item))}
+          {visibleMainItems.map((item) => renderItem(item))}
           {renderGroup('Quản lý kho', Warehouse, inventoryItems, inventoryOpen, setInventoryOpen)}
           {renderGroup('Quản lý đơn', ShoppingBag, orderItems, ordersOpen, setOrdersOpen)}
-          {renderGroup('Cấu hình & thông báo', Settings, configItems, configOpen, setConfigOpen)}
-          {renderGroup('Quản lý Website', Users, websiteItems, websiteOpen, setWebsiteOpen)}
+          {renderGroup('Cấu hình & thông báo', Settings, visibleConfigItems, configOpen, setConfigOpen)}
+          {renderGroup('Quản lý Website', Users, visibleWebsiteItems, websiteOpen, setWebsiteOpen)}
         </nav>
 
         <div className="p-3 border-t border-white/10 flex items-center gap-2 shrink-0">

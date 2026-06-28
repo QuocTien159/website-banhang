@@ -28,7 +28,7 @@ export function LoginPage() {
         // Re-fetch user to determine role
         const storedRaw = sessionStorage.getItem('auth_user');
         const storedUser = storedRaw ? JSON.parse(storedRaw) : null;
-        navigate(storedUser?.role === 'admin' ? '/admin' : from, { replace: true });
+        navigate(['admin', 'staff'].includes(storedUser?.role) ? '/admin' : from, { replace: true });
       } else {
         setError('Email hoặc mật khẩu không đúng.');
       }

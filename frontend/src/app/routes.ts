@@ -29,6 +29,7 @@ import { AdminStockMovements } from './components/admin/AdminStockMovements';
 import { AdminStockAlerts } from './components/admin/AdminStockAlerts';
 import { AdminReturns } from './components/admin/AdminReturns';
 import { AdminPaymentShippingSettings } from './components/admin/AdminPaymentShippingSettings';
+import { AdminStaff } from './components/admin/AdminStaff';
 
 export const router = createBrowserRouter([
   {
@@ -75,6 +76,7 @@ export const router = createBrowserRouter([
       { path: 'returns', Component: AdminReturns },
       { path: 'payment-shipping', Component: AdminPaymentShippingSettings },
       { path: 'customers', Component: AdminCustomers },
+      { path: 'staff', Component: AdminStaff },
     ],
   },
 ]);

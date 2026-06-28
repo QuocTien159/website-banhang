@@ -22,6 +22,7 @@ use App\Http\Controllers\Api\Admin\AdminAnnouncementController;
 use App\Http\Controllers\Api\Admin\AdminAttributeController;
 use App\Http\Controllers\Api\Admin\AdminInventoryController;
 use App\Http\Controllers\Api\Admin\AdminReturnRequestController;
+use App\Http\Controllers\Api\Admin\AdminStaffController;
 use App\Http\Controllers\Api\ShippingPaymentController;
 use App\Http\Controllers\Api\Admin\AdminPaymentShippingSettingController;
 
@@ -93,7 +94,7 @@ Route::middleware('auth:sanctum')->group(function () {
     | Admin Routes — Requires admin role
     |------------------------------------------------------------------
     */
-    Route::middleware('admin')->prefix('admin')->group(function () {
+    Route::middleware('role:staff,admin')->prefix('admin')->group(function () {
         // Products
         Route::get   ('products',                [AdminProductController::class, 'index']);
         Route::get   ('products/options',        [AdminProductController::class, 'options']);
@@ -118,15 +119,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put   ('attributes/{id}/values/{valueId}', [AdminAttributeController::class, 'updateValue']);
         Route::delete('attributes/{id}/values/{valueId}', [AdminAttributeController::class, 'destroyValue']);
 
-        Route::apiResource('promotions', AdminPromotionController::class)->except(['show']);
         Route::get('reviews', [AdminReviewController::class, 'index']);
         Route::put('reviews/{id}/status', [AdminReviewController::class, 'moderate']);
-        Route::put('reviews/{id}/reply', [AdminReviewController::class, 'reply']);
-        Route::delete('reviews/{id}/reply', [AdminReviewController::class, 'deleteReply']);
-        Route::delete('reviews/{id}', [AdminReviewController::class, 'destroy']);
-        Route::apiResource('announcements', AdminAnnouncementController::class)->except(['show']);
-        Route::post('announcements/images', [AdminAnnouncementController::class, 'uploadImages']);
-        Route::delete('announcements/images/uploaded', [AdminAnnouncementController::class, 'deleteUploadedImage']);
 
         Route::get('returns', [AdminReturnRequestController::class, 'index']);
         Route::get('returns/{id}', [AdminReturnRequestController::class, 'show']);
@@ -145,16 +139,29 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('orders',                     [AdminOrderController::class, 'index']);
         Route::put('orders/{id}/status',         [AdminOrderController::class, 'updateStatus']);
         Route::put('orders/{id}/payment-status', [AdminOrderController::class, 'updatePaymentStatus']);
-        Route::get('payment-shipping-settings',  [AdminPaymentShippingSettingController::class, 'show']);
-        Route::put('payment-shipping-settings',  [AdminPaymentShippingSettingController::class, 'update']);
+        Route::middleware('role:admin')->group(function () {
+            Route::apiResource('promotions', AdminPromotionController::class)->except(['show']);
+            Route::put('reviews/{id}/reply', [AdminReviewController::class, 'reply']);
+            Route::delete('reviews/{id}/reply', [AdminReviewController::class, 'deleteReply']);
+            Route::delete('reviews/{id}', [AdminReviewController::class, 'destroy']);
+            Route::apiResource('announcements', AdminAnnouncementController::class)->except(['show']);
+            Route::post('announcements/images', [AdminAnnouncementController::class, 'uploadImages']);
+            Route::delete('announcements/images/uploaded', [AdminAnnouncementController::class, 'deleteUploadedImage']);
 
-        // Customers
-        Route::get('customers',                  [AdminCustomerController::class, 'index']);
-        Route::put('customers/{id}/status',      [AdminCustomerController::class, 'toggleStatus']);
+            Route::get('payment-shipping-settings',  [AdminPaymentShippingSettingController::class, 'show']);
+            Route::put('payment-shipping-settings',  [AdminPaymentShippingSettingController::class, 'update']);
 
-        // Reports
-        Route::get('reports/summary',            [AdminReportController::class, 'summary']);
-        Route::get('reports/revenue',            [AdminReportController::class, 'revenue']);
-        Route::get('reports/inventory',          [AdminReportController::class, 'inventory']);
+            Route::get('customers',                  [AdminCustomerController::class, 'index']);
+            Route::put('customers/{id}/status',      [AdminCustomerController::class, 'toggleStatus']);
+
+            Route::get('staff',                      [AdminStaffController::class, 'index']);
+            Route::post('staff',                     [AdminStaffController::class, 'store']);
+            Route::put('staff/{id}',                 [AdminStaffController::class, 'update']);
+            Route::put('staff/{id}/status',          [AdminStaffController::class, 'toggleStatus']);
+
+            Route::get('reports/summary',            [AdminReportController::class, 'summary']);
+            Route::get('reports/revenue',            [AdminReportController::class, 'revenue']);
+            Route::get('reports/inventory',          [AdminReportController::class, 'inventory']);
+        });
     });
 });
