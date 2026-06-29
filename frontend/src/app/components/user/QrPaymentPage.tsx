@@ -4,17 +4,8 @@ import { ArrowLeft, CheckCircle, Clipboard, Loader2, QrCode } from 'lucide-react
 import { toast } from 'sonner';
 import { orderService, type ApiOrder } from '../../services/orderService';
 import { Button } from '../ui/button';
-
-const formatPrice = (price: number) =>
-  new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(price);
-
-const PAYMENT_STATUS_LABELS: Record<string, string> = {
-  pending_payment: 'Chờ thanh toán',
-  waiting_admin_confirmation: 'Chờ admin xác nhận',
-  paid: 'Đã thanh toán',
-  payment_not_received: 'Chưa nhận được tiền',
-  cod_pending: 'Thanh toán COD',
-};
+import { PAYMENT_STATUS_LABELS as SHARED_PAYMENT_STATUS_LABELS } from '../../constants/status';
+import { formatCurrency } from '../../utils/formatters';
 
 export function QrPaymentPage() {
   const { id } = useParams();
@@ -79,7 +70,7 @@ export function QrPaymentPage() {
           </div>
           <div>
             <h1 className="text-2xl font-semibold">Thanh toán QR chuyển khoản</h1>
-            <p className="text-sm text-muted-foreground">Đơn hàng #{order.id} · {PAYMENT_STATUS_LABELS[order.payment_status ?? ''] ?? order.payment_status}</p>
+            <p className="text-sm text-muted-foreground">Đơn hàng #{order.id} · {SHARED_PAYMENT_STATUS_LABELS[order.payment_status ?? ''] ?? order.payment_status}</p>
           </div>
         </div>
 
@@ -101,7 +92,7 @@ export function QrPaymentPage() {
 
           <div className="space-y-3 text-sm">
             <InfoRow label="Mã đơn hàng" value={order.id} />
-            <InfoRow label="Số tiền cần chuyển" value={formatPrice(order.total)} strong />
+            <InfoRow label="Số tiền cần chuyển" value={formatCurrency(order.total)} strong />
             <InfoRow label="Ngân hàng" value={order.bank?.bank_name ?? ''} />
             <CopyRow label="Số tài khoản" value={order.bank?.account_number ?? ''} onCopy={() => copy(order.bank?.account_number, 'số tài khoản')} />
             <InfoRow label="Chủ tài khoản" value={order.bank?.account_name ?? ''} />

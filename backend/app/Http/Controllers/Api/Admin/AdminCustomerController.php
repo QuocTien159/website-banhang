@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\KhachHang;
+use App\Support\UserRole;
 use Illuminate\Http\Request;
 
 class AdminCustomerController extends Controller
@@ -12,7 +13,7 @@ class AdminCustomerController extends Controller
     public function index(Request $request)
     {
         $query = KhachHang::withCount('donHangs')
-            ->where('role', 'customer')
+            ->where('role', UserRole::CUSTOMER)
             ->where('vai_tro', false);
 
         if ($search = $request->input('search')) {
@@ -53,7 +54,7 @@ class AdminCustomerController extends Controller
     public function toggleStatus(Request $request, string $id)
     {
         $customer = KhachHang::where('ma_kh', $id)
-            ->where('role', 'customer')
+            ->where('role', UserRole::CUSTOMER)
             ->where('vai_tro', false)
             ->firstOrFail();
         $customer->update(['trang_thai' => !$customer->trang_thai]);

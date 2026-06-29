@@ -25,6 +25,7 @@ use App\Http\Controllers\Api\Admin\AdminReturnRequestController;
 use App\Http\Controllers\Api\Admin\AdminStaffController;
 use App\Http\Controllers\Api\ShippingPaymentController;
 use App\Http\Controllers\Api\Admin\AdminPaymentShippingSettingController;
+use App\Support\UserRole;
 
 /*
 |----------------------------------------------------------------------
@@ -94,7 +95,7 @@ Route::middleware('auth:sanctum')->group(function () {
     | Admin Routes — Requires admin role
     |------------------------------------------------------------------
     */
-    Route::middleware('role:staff,admin')->prefix('admin')->group(function () {
+    Route::middleware('role:'.UserRole::STAFF.','.UserRole::ADMIN)->prefix('admin')->group(function () {
         // Products
         Route::get   ('products',                [AdminProductController::class, 'index']);
         Route::get   ('products/options',        [AdminProductController::class, 'options']);
@@ -139,7 +140,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('orders',                     [AdminOrderController::class, 'index']);
         Route::put('orders/{id}/status',         [AdminOrderController::class, 'updateStatus']);
         Route::put('orders/{id}/payment-status', [AdminOrderController::class, 'updatePaymentStatus']);
-        Route::middleware('role:admin')->group(function () {
+        Route::middleware('role:'.UserRole::ADMIN)->group(function () {
             Route::apiResource('promotions', AdminPromotionController::class)->except(['show']);
             Route::put('reviews/{id}/reply', [AdminReviewController::class, 'reply']);
             Route::delete('reviews/{id}/reply', [AdminReviewController::class, 'deleteReply']);

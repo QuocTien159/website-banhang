@@ -10,6 +10,8 @@ use App\Models\GioHang;
 use App\Services\InventoryService;
 use App\Services\PromotionService;
 use App\Services\ShippingPaymentService;
+use App\Support\OrderStatus;
+use App\Support\PaymentStatus;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -75,6 +77,7 @@ class OrderController extends Controller
         }
 
         $subtotal = (float) $cart->chiTiets->sum(fn ($item) => $item->bienThe->gia_ban * $item->so_luong);
+        // Backend luôn tự tính phí ship từ địa chỉ hành chính hợp lệ, không tin phí gửi từ frontend.
         $shippingResult = $shippingPaymentService->calculateShipping(
             $subtotal,
             $data['province_type'],
@@ -130,7 +133,7 @@ class OrderController extends Controller
                 'so_tien_giam' => $discount,
                 'tong_tien' => max(0, $subtotal + $shipping - $discount),
                 'phuong_thuc_tt' => $paymentMethod,
-                'trang_thai_thanh_toan' => $paymentMethod === 'cod' ? 'cod_pending' : 'pending_payment',
+                'trang_thai_thanh_toan' => $paymentMethod === 'cod' ? PaymentStatus::COD_PENDING : PaymentStatus::PENDING_PAYMENT,
                 'dia_chi_giao' => "{$data['ten_nguoi_nhan']} | {$data['so_dien_thoai']} | {$fullAddress}",
                 'province_type' => $address['province_type'],
                 'ma_tinh_thanh' => $address['province_code'],
@@ -140,7 +143,7 @@ class OrderController extends Controller
                 'quan_huyen' => $address['district_name'],
                 'phuong_xa' => $address['ward_name'],
                 'dia_chi_chi_tiet' => $addressDetail,
-                'trang_thai' => 'pending',
+                'trang_thai' => OrderStatus::PENDING,
                 'ghi_chu' => $data['ghi_chu'] ?? null,
             ]);
 
@@ -202,12 +205,12 @@ class OrderController extends Controller
             return response()->json(['message' => 'Đơn hàng này không dùng thanh toán QR chuyển khoản.'], 422);
         }
 
-        if (!in_array($order->trang_thai_thanh_toan, ['pending_payment', 'payment_not_received'], true)) {
+        if (!in_array($order->trang_thai_thanh_toan, [PaymentStatus::PENDING_PAYMENT, PaymentStatus::PAYMENT_NOT_RECEIVED], true)) {
             return response()->json(['message' => 'Trạng thái thanh toán hiện tại không cho phép báo đã chuyển khoản.'], 422);
         }
 
         $order->update([
-            'trang_thai_thanh_toan' => 'waiting_admin_confirmation',
+            'trang_thai_thanh_toan' => PaymentStatus::WAITING_ADMIN_CONFIRMATION,
             'khach_bao_da_chuyen_at' => now(),
         ]);
 

@@ -7,12 +7,15 @@ use App\Models\BienTheSanPham;
 use App\Models\DonHang;
 use App\Models\KhachHang;
 use App\Models\SanPham;
+use App\Support\OrderStatus;
+use App\Support\UserRole;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class AdminReportController extends Controller
 {
-    private const REVENUE_STATUSES = ['delivered'];
+    // Chỉ đơn đã giao thành công mới được ghi nhận doanh thu; đơn đang xử lý có thể bị hủy/trả.
+    private const REVENUE_STATUSES = [OrderStatus::DELIVERED];
     private const REVENUE_RETURN_STATUSES = ['received', 'completed'];
 
     public function summary()
@@ -22,7 +25,7 @@ class AdminReportController extends Controller
             ->get());
         $totalOrders = DonHang::count();
         $pendingOrders = DonHang::where('trang_thai', 'pending')->count();
-        $totalCustomers = KhachHang::where('role', 'customer')->where('vai_tro', false)->count();
+        $totalCustomers = KhachHang::where('role', UserRole::CUSTOMER)->where('vai_tro', false)->count();
         $totalProducts = SanPham::where('trang_thai', 'active')->count();
         $lowStockCount = BienTheSanPham::where('trang_thai', true)
             ->whereColumn('so_luong_ton', '<=', 'nguong_canh_bao_ton')

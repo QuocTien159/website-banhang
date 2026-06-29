@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\KhachHang;
+use App\Support\UserRole;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
@@ -25,7 +26,7 @@ class AuthController extends Controller
             'mat_khau'   => Hash::make($data['mat_khau']),
             'dien_thoai' => $data['dien_thoai'] ?? null,
             'vai_tro'    => false,
-            'role'        => 'customer',
+            'role'        => UserRole::CUSTOMER,
             'trang_thai' => true,
             'ngay_tao'   => now(),
         ]);

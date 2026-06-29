@@ -2,17 +2,13 @@ import { useEffect, useMemo, useState } from 'react';
 import { Package } from 'lucide-react';
 import { toast } from 'sonner';
 import { adminService } from '../../services/orderService';
-
-const formatPrice = (price: number) =>
-  new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(price);
-
-const STATUS_COLORS: Record<string, string> = {
-  pending: 'bg-yellow-100 text-yellow-700',
-  confirmed: 'bg-blue-100 text-blue-700',
-  shipping: 'bg-purple-100 text-purple-700',
-  delivered: 'bg-green-100 text-green-700',
-  cancelled: 'bg-red-100 text-red-700',
-};
+import {
+  ORDER_STATUS_COLORS as SHARED_ORDER_STATUS_COLORS,
+  ORDER_STATUS_FLOW as SHARED_ORDER_STATUS_FLOW,
+  ORDER_STATUS_LABELS as SHARED_ORDER_STATUS_LABELS,
+  PAYMENT_STATUS_LABELS as SHARED_PAYMENT_STATUS_LABELS,
+} from '../../constants/status';
+import { formatCurrency } from '../../utils/formatters';
 
 const STATUS_LABELS: Record<string, string> = {
   pending: 'Chờ xác nhận',
@@ -122,8 +118,8 @@ export function AdminOrders() {
   const statsText = useMemo(() => `${orders.length} đơn hàng`, [orders.length]);
 
   const getNextStatus = (current: string) => {
-    const index = STATUS_FLOW.indexOf(current);
-    return index >= 0 && index < STATUS_FLOW.length - 1 ? STATUS_FLOW[index + 1] : null;
+    const index = SHARED_ORDER_STATUS_FLOW.indexOf(current);
+    return index >= 0 && index < SHARED_ORDER_STATUS_FLOW.length - 1 ? SHARED_ORDER_STATUS_FLOW[index + 1] : null;
   };
 
   const handleStatusUpdate = async (orderId: string, newStatus: string) => {
@@ -173,7 +169,7 @@ export function AdminOrders() {
           className="px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:border-orange-400 bg-white"
         >
           <option value="">Tất cả trạng thái</option>
-          {Object.entries(STATUS_LABELS).map(([value, label]) => (
+          {Object.entries(SHARED_ORDER_STATUS_LABELS).map(([value, label]) => (
             <option key={value} value={value}>{label}</option>
           ))}
         </select>
@@ -204,15 +200,15 @@ export function AdminOrders() {
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-sm font-semibold">#{order.id}</span>
-                        <span className={`text-xs px-2 py-0.5 rounded-full ${STATUS_COLORS[order.status] ?? 'bg-gray-100 text-gray-700'}`}>
-                          {STATUS_LABELS[order.status] ?? order.status}
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${SHARED_ORDER_STATUS_COLORS[order.status] ?? 'bg-gray-100 text-gray-700'}`}>
+                          {SHARED_ORDER_STATUS_LABELS[order.status] ?? order.status}
                         </span>
                         <span className="text-xs text-muted-foreground">
                           {order.paymentMethod === 'cod' ? 'COD' : isQrOrder ? 'QR chuyển khoản' : 'Không xác định'}
                         </span>
                         {order.paymentStatus && (
                           <span className="text-xs px-2 py-0.5 rounded-full bg-blue-50 text-blue-700">
-                            {PAYMENT_STATUS_LABELS[order.paymentStatus] ?? order.paymentStatus}
+                            {SHARED_PAYMENT_STATUS_LABELS[order.paymentStatus] ?? order.paymentStatus}
                           </span>
                         )}
                       </div>
@@ -230,7 +226,7 @@ export function AdminOrders() {
                       )}
                     </div>
                     <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
-                      <span className="text-sm font-bold" style={{ color: '#ea5c21' }}>{formatPrice(order.total)}</span>
+                      <span className="text-sm font-bold" style={{ color: '#ea5c21' }}>{formatCurrency(order.total)}</span>
                       {nextStatus && order.status !== 'cancelled' && (
                         <button
                           onClick={() => handleStatusUpdate(order.id, nextStatus)}
@@ -238,7 +234,7 @@ export function AdminOrders() {
                           className="text-xs px-3 py-1.5 rounded-lg text-white transition-opacity disabled:opacity-50"
                           style={{ backgroundColor: '#ea5c21' }}
                         >
-                          {updating === order.id ? '...' : `→ ${STATUS_LABELS[nextStatus]}`}
+                          {updating === order.id ? '...' : `→ ${SHARED_ORDER_STATUS_LABELS[nextStatus]}`}
                         </button>
                       )}
                       {order.status === 'pending' && (

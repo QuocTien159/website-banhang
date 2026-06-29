@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Api\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\DonHang;
 use App\Services\InventoryService;
+use App\Support\OrderStatus;
+use App\Support\PaymentStatus;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -70,13 +72,13 @@ class AdminOrderController extends Controller
     public function updateStatus(Request $request, string $id, InventoryService $inventoryService)
     {
         $data = $request->validate([
-            'status' => 'required|in:pending,confirmed,shipping,delivered,cancelled',
+            'status' => ['required', 'in:'.implode(',', OrderStatus::ALL)],
         ]);
 
         $order = DonHang::findOrFail($id);
         $oldStatus = $order->trang_thai;
 
-        if ($data['status'] === 'cancelled' && $oldStatus !== 'cancelled') {
+        if ($data['status'] === OrderStatus::CANCELLED && $oldStatus !== OrderStatus::CANCELLED) {
             DB::transaction(function () use ($order, $data, $request, $inventoryService) {
                 foreach ($order->chiTiets as $item) {
                     $inventoryService->changeStock(
@@ -100,7 +102,7 @@ class AdminOrderController extends Controller
     public function updatePaymentStatus(Request $request, string $id)
     {
         $data = $request->validate([
-            'payment_status' => 'required|in:paid,payment_not_received',
+            'payment_status' => ['required', 'in:'.implode(',', [PaymentStatus::PAID, PaymentStatus::PAYMENT_NOT_RECEIVED])],
         ]);
 
         $order = DonHang::findOrFail($id);
@@ -109,7 +111,7 @@ class AdminOrderController extends Controller
         }
 
         $payload = ['trang_thai_thanh_toan' => $data['payment_status']];
-        if ($data['payment_status'] === 'paid') {
+        if ($data['payment_status'] === PaymentStatus::PAID) {
             $payload['thanh_toan_xac_nhan_at'] = now();
             $payload['thanh_toan_xac_nhan_boi'] = $request->user()->ma_kh;
         } else {
@@ -120,7 +122,7 @@ class AdminOrderController extends Controller
         $order->update($payload);
 
         return response()->json([
-            'message' => $data['payment_status'] === 'paid'
+            'message' => $data['payment_status'] === PaymentStatus::PAID
                 ? 'Đã xác nhận đơn hàng đã thanh toán.'
                 : 'Đã đánh dấu chưa nhận được tiền.',
             'payment_status' => $order->fresh()->trang_thai_thanh_toan,
@@ -130,11 +132,11 @@ class AdminOrderController extends Controller
     private function getStats(): array
     {
         return [
-            'pending' => DonHang::where('trang_thai', 'pending')->count(),
-            'confirmed' => DonHang::where('trang_thai', 'confirmed')->count(),
-            'shipping' => DonHang::where('trang_thai', 'shipping')->count(),
-            'delivered' => DonHang::where('trang_thai', 'delivered')->count(),
-            'cancelled' => DonHang::where('trang_thai', 'cancelled')->count(),
+            OrderStatus::PENDING => DonHang::where('trang_thai', OrderStatus::PENDING)->count(),
+            OrderStatus::CONFIRMED => DonHang::where('trang_thai', OrderStatus::CONFIRMED)->count(),
+            OrderStatus::SHIPPING => DonHang::where('trang_thai', OrderStatus::SHIPPING)->count(),
+            OrderStatus::DELIVERED => DonHang::where('trang_thai', OrderStatus::DELIVERED)->count(),
+            OrderStatus::CANCELLED => DonHang::where('trang_thai', OrderStatus::CANCELLED)->count(),
         ];
     }
 }

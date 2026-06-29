@@ -4,9 +4,7 @@ import { useCart } from '../../store/AppContext';
 import { Button } from '../ui/button';
 import { ImageWithFallback } from '../figma/ImageWithFallback';
 import { toast } from 'sonner';
-
-const formatPrice = (p: number) =>
-  new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(p);
+import { formatCurrency } from '../../utils/formatters';
 
 export function CartPage() {
   const { cart, totalItems, subtotal, shipping, total, isLoading, updateQuantity, removeFromCart } = useCart();
@@ -88,7 +86,7 @@ export function CartPage() {
                       </div>
                     )}
                     <p className="text-sm font-semibold mt-1" style={{ color: '#ea5c21' }}>
-                      {formatPrice(item.price)}
+                      {formatCurrency(item.price)}
                     </p>
                   </div>
                   <button
@@ -119,7 +117,7 @@ export function CartPage() {
                     </button>
                   </div>
                   <p className="text-sm font-semibold">
-                    {formatPrice(item.price * item.quantity)}
+                    {formatCurrency(item.price * item.quantity)}
                   </p>
                 </div>
 
@@ -140,26 +138,26 @@ export function CartPage() {
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Tạm tính ({totalItems} sản phẩm)</span>
-                <span>{formatPrice(subtotal)}</span>
+                <span>{formatCurrency(subtotal)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Phí vận chuyển</span>
                 {shipping === 0 ? (
                   <span className="text-green-600">Miễn phí</span>
                 ) : (
-                  <span>{formatPrice(shipping)}</span>
+                  <span>{formatCurrency(shipping)}</span>
                 )}
               </div>
               {shipping > 0 && (
                 <p className="text-xs text-muted-foreground">
-                  Mua thêm {formatPrice(500000 - subtotal)} để miễn phí ship
+                  Mua thêm {formatCurrency(500000 - subtotal)} để miễn phí ship
                 </p>
               )}
             </div>
 
             <div className="border-t border-border pt-3 flex justify-between font-semibold">
               <span>Tổng cộng</span>
-              <span style={{ color: '#ea5c21' }}>{formatPrice(total)}</span>
+              <span style={{ color: '#ea5c21' }}>{formatCurrency(total)}</span>
             </div>
 
             <Button

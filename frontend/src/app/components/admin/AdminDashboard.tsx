@@ -20,11 +20,8 @@ import {
   Users,
 } from "lucide-react";
 import { adminService } from "../../services/orderService";
-
-const formatPrice = (price: number) =>
-  new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND" }).format(
-    price
-  );
+import { ORDER_STATUS_COLORS, ORDER_STATUS_LABELS } from "../../constants/status";
+import { formatCurrency } from "../../utils/formatters";
 
 const STATUS_COLORS: Record<string, string> = {
   pending: "bg-yellow-100 text-yellow-700",
@@ -99,7 +96,7 @@ export function AdminDashboard() {
   const stats = [
     {
       label: "Doanh thu",
-      value: formatPrice(summary.total_revenue ?? 0),
+      value: formatCurrency(summary.total_revenue ?? 0),
       sub: "Chỉ tính đơn đã hoàn thành",
       icon: TrendingUp,
       color: "#ea5c21",
@@ -180,7 +177,7 @@ export function AdminDashboard() {
                 />
                 <Tooltip
                   formatter={(value: number) => [
-                    formatPrice(value),
+                    formatCurrency(value),
                     "Doanh thu",
                   ]}
                 />
@@ -258,10 +255,10 @@ export function AdminDashboard() {
                       <span className="text-sm font-medium">#{order.id}</span>
                       <span
                         className={`text-xs px-2 py-0.5 rounded-full ${
-                          STATUS_COLORS[order.status] ?? ""
+                          ORDER_STATUS_COLORS[order.status] ?? ""
                         }`}
                       >
-                        {STATUS_LABELS[order.status] ?? order.status}
+                        {ORDER_STATUS_LABELS[order.status] ?? order.status}
                       </span>
                     </div>
                     <p className="text-xs text-muted-foreground mt-0.5">
@@ -273,7 +270,7 @@ export function AdminDashboard() {
                     className="text-sm font-semibold shrink-0"
                     style={{ color: "#ea5c21" }}
                   >
-                    {formatPrice(order.total)}
+                    {formatCurrency(order.total)}
                   </span>
                 </div>
               ))
@@ -328,7 +325,7 @@ export function AdminDashboard() {
                     className="text-xs font-medium shrink-0"
                     style={{ color: "#ea5c21" }}
                   >
-                    {formatPrice(product.price)}
+                    {formatCurrency(product.price)}
                   </span>
                 </div>
               ))
@@ -340,12 +337,12 @@ export function AdminDashboard() {
       <div className="bg-white rounded-xl border border-border p-4">
         <h4 className="font-semibold mb-4">Trạng thái đơn hàng</h4>
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-          {Object.entries(STATUS_LABELS).map(([status, label]) => {
+          {Object.entries(ORDER_STATUS_LABELS).map(([status, label]) => {
             const count = summary[`status_${status}`] ?? 0;
             return (
               <div
                 key={status}
-                className={`rounded-xl p-3 text-center ${STATUS_COLORS[status]}`}
+                className={`rounded-xl p-3 text-center ${ORDER_STATUS_COLORS[status]}`}
               >
                 <p className="text-2xl font-bold">{count}</p>
                 <p className="text-xs mt-0.5">{label}</p>

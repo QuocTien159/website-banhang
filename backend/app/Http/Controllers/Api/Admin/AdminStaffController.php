@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\KhachHang;
+use App\Support\UserRole;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
@@ -15,7 +16,7 @@ class AdminStaffController extends Controller
     {
         $query = KhachHang::query()
             ->where(function ($builder) {
-                $builder->whereIn('role', ['staff', 'admin'])
+                $builder->whereIn('role', [UserRole::STAFF, UserRole::ADMIN])
                     ->orWhere('vai_tro', true);
             });
 
@@ -57,7 +58,7 @@ class AdminStaffController extends Controller
             'email' => ['required', 'email', 'max:100', 'unique:khach_hang,email'],
             'phone' => ['nullable', 'string', 'max:11', 'unique:khach_hang,dien_thoai'],
             'password' => ['required', 'string', 'min:6'],
-            'role' => ['required', Rule::in(['staff', 'admin'])],
+            'role' => ['required', Rule::in([UserRole::STAFF, UserRole::ADMIN])],
             'active' => ['sometimes', 'boolean'],
         ]);
 
@@ -66,7 +67,7 @@ class AdminStaffController extends Controller
             'email' => trim($data['email']),
             'dien_thoai' => $data['phone'] ?: null,
             'mat_khau' => Hash::make($data['password']),
-            'vai_tro' => $data['role'] === 'admin',
+            'vai_tro' => $data['role'] === UserRole::ADMIN,
             'role' => $data['role'],
             'trang_thai' => $data['active'] ?? true,
             'ngay_tao' => now(),
@@ -81,7 +82,7 @@ class AdminStaffController extends Controller
     {
         $staff = KhachHang::where('ma_kh', $id)
             ->where(function ($query) {
-                $query->whereIn('role', ['staff', 'admin'])->orWhere('vai_tro', true);
+                $query->whereIn('role', [UserRole::STAFF, UserRole::ADMIN])->orWhere('vai_tro', true);
             })
             ->firstOrFail();
 
@@ -90,11 +91,11 @@ class AdminStaffController extends Controller
             'email' => ['required', 'email', 'max:100', Rule::unique('khach_hang', 'email')->ignore($staff->ma_kh, 'ma_kh')],
             'phone' => ['nullable', 'string', 'max:11', Rule::unique('khach_hang', 'dien_thoai')->ignore($staff->ma_kh, 'ma_kh')],
             'password' => ['nullable', 'string', 'min:6'],
-            'role' => ['required', Rule::in(['staff', 'admin'])],
+            'role' => ['required', Rule::in([UserRole::STAFF, UserRole::ADMIN])],
             'active' => ['required', 'boolean'],
         ]);
 
-        if ($request->user()->ma_kh === $staff->ma_kh && ($data['role'] !== 'admin' || !$data['active'])) {
+        if ($request->user()->ma_kh === $staff->ma_kh && ($data['role'] !== UserRole::ADMIN || !$data['active'])) {
             throw ValidationException::withMessages([
                 'role' => 'Bạn không thể tự hạ quyền hoặc khóa tài khoản của chính mình.',
             ]);
@@ -104,7 +105,7 @@ class AdminStaffController extends Controller
             'ten_kh' => trim($data['name']),
             'email' => trim($data['email']),
             'dien_thoai' => $data['phone'] ?: null,
-            'vai_tro' => $data['role'] === 'admin',
+            'vai_tro' => $data['role'] === UserRole::ADMIN,
             'role' => $data['role'],
             'trang_thai' => $data['active'],
         ];
@@ -122,7 +123,7 @@ class AdminStaffController extends Controller
     {
         $staff = KhachHang::where('ma_kh', $id)
             ->where(function ($query) {
-                $query->whereIn('role', ['staff', 'admin'])->orWhere('vai_tro', true);
+                $query->whereIn('role', [UserRole::STAFF, UserRole::ADMIN])->orWhere('vai_tro', true);
             })
             ->firstOrFail();
 

@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Laravel\Sanctum\HasApiTokens;
 use App\Traits\GeneratesCustomId;
+use App\Support\UserRole;
 
 class KhachHang extends Authenticatable
 {
@@ -65,12 +66,12 @@ class KhachHang extends Authenticatable
     // Helper
     public function isAdmin(): bool
     {
-        return $this->role === 'admin' || $this->vai_tro === true;
+        return $this->role === UserRole::ADMIN || $this->vai_tro === true;
     }
 
     public function isStaff(): bool
     {
-        return $this->role === 'staff';
+        return $this->role === UserRole::STAFF;
     }
 
     public function hasRole(string ...$roles): bool
@@ -81,13 +82,13 @@ class KhachHang extends Authenticatable
     public function roleName(): string
     {
         if ($this->vai_tro === true) {
-            return 'admin';
+            return UserRole::ADMIN;
         }
 
-        if ($this->role && $this->role !== 'admin') {
+        if ($this->role && $this->role !== UserRole::ADMIN) {
             return $this->role;
         }
 
-        return 'customer';
+        return UserRole::CUSTOMER;
     }
 }
