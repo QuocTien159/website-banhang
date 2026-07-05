@@ -16,6 +16,9 @@ type ReturnRequest = {
   description?: string;
   admin_note?: string;
   reject_reason?: string;
+  last_processed_by?: string;
+  last_processed_at?: string;
+  processing_history?: { action: string; old_value?: string; new_value?: string; processed_by?: string; processed_at?: string; note?: string }[];
   created_at?: string;
   items_count: number;
   total_refund_estimate?: number;
@@ -214,7 +217,23 @@ export function AdminReturns() {
                 <p className="text-sm mt-2">{detail.reason}</p>
                 {detail.description && <p className="text-sm text-muted-foreground mt-1">{detail.description}</p>}
                 {detail.reject_reason && <p className="text-sm text-red-600 mt-2">Lý do từ chối: {detail.reject_reason}</p>}
+                {detail.last_processed_by && <p className="text-sm text-muted-foreground mt-2">Xử lý gần nhất: {detail.last_processed_by} · {formatDate(detail.last_processed_at)}</p>}
               </section>
+
+              {detail.processing_history && detail.processing_history.length > 0 && (
+                <section className="border rounded-xl p-4">
+                  <h4 className="font-semibold mb-3">Lịch sử xử lý</h4>
+                  <div className="space-y-2">
+                    {detail.processing_history.map((history, index) => (
+                      <div key={index} className="text-sm border-b last:border-0 pb-2 last:pb-0">
+                        <p className="font-medium">{history.action}: {history.old_value ?? '-'} → {history.new_value ?? '-'}</p>
+                        <p className="text-xs text-muted-foreground">{history.processed_by ?? 'N/A'} · {formatDate(history.processed_at)}</p>
+                        {history.note && <p className="text-xs mt-1">{history.note}</p>}
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              )}
 
               <section className="space-y-3">
                 <h4 className="font-semibold">Sản phẩm trả</h4>

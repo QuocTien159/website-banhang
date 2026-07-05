@@ -280,6 +280,10 @@ export const adminService = {
     const { data } = await apiClient.delete(`/admin/products/${id}`);
     return data;
   },
+  async hideProduct(id: string) {
+    const { data } = await apiClient.put(`/admin/products/${id}/hide`);
+    return data;
+  },
   async updateVariantStock(variantId: string, so_luong_ton: number) {
     const { data } = await apiClient.put(`/admin/variants/${variantId}`, { so_luong_ton });
     return data;
@@ -337,6 +341,14 @@ export const adminService = {
   },
   async getStockReceipt(id: string) {
     const { data } = await apiClient.get(`/admin/inventory/receipts/${id}`);
+    return data;
+  },
+  async approveStockReceipt(id: string, approval_note?: string) {
+    const { data } = await apiClient.put(`/admin/inventory/receipts/${id}/approve`, { approval_note });
+    return data;
+  },
+  async rejectStockReceipt(id: string, approval_note?: string) {
+    const { data } = await apiClient.put(`/admin/inventory/receipts/${id}/reject`, { approval_note });
     return data;
   },
   async getStockMovements(params: Record<string, string | number> = {}) {

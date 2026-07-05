@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\KhachHang;
+use App\Models\SanPham;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Laravel\Sanctum\Sanctum;
@@ -37,12 +38,40 @@ class RoleAccessControlTest extends TestCase
         $this->getJson('/api/admin/inventory/alerts')->assertOk();
         $this->getJson('/api/admin/reviews')->assertOk();
 
+        $this->getJson('/api/admin/categories')->assertForbidden();
+        $this->getJson('/api/admin/attributes')->assertForbidden();
         $this->getJson('/api/admin/customers')->assertForbidden();
         $this->getJson('/api/admin/staff')->assertForbidden();
         $this->getJson('/api/admin/reports/summary')->assertForbidden();
         $this->getJson('/api/admin/payment-shipping-settings')->assertForbidden();
         $this->getJson('/api/admin/promotions')->assertForbidden();
         $this->getJson('/api/admin/announcements')->assertForbidden();
+    }
+
+    public function test_staff_cannot_create_update_or_delete_products_but_can_hide_active_product(): void
+    {
+        Sanctum::actingAs($this->createStaff());
+        $product = SanPham::where('trang_thai', 'active')->firstOrFail();
+
+        $this->postJson('/api/admin/products', [])->assertForbidden();
+        $this->putJson("/api/admin/products/{$product->ma_sp}", [])->assertForbidden();
+        $this->deleteJson("/api/admin/products/{$product->ma_sp}")->assertForbidden();
+
+        $this->putJson("/api/admin/products/{$product->ma_sp}/hide")
+            ->assertOk();
+
+        $this->assertSame('inactive', $product->fresh()->trang_thai);
+    }
+
+    public function test_admin_can_hide_active_product_with_explicit_endpoint(): void
+    {
+        Sanctum::actingAs(KhachHang::where('vai_tro', true)->firstOrFail());
+        $product = SanPham::where('trang_thai', 'active')->firstOrFail();
+
+        $this->putJson("/api/admin/products/{$product->ma_sp}/hide")
+            ->assertOk();
+
+        $this->assertSame('inactive', $product->fresh()->trang_thai);
     }
 
     public function test_customer_cannot_access_admin_apis(): void

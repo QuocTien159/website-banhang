@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Edit2, Loader2, Plus, Search, ShieldCheck } from 'lucide-react';
+import { Edit2, Eye, EyeOff, Loader2, Plus, Search, ShieldCheck } from 'lucide-react';
 import { toast } from 'sonner';
 import { adminService, type AdminStaff as Staff, type AdminStaffPayload } from '../../services/orderService';
 import { Button } from '../ui/button';
@@ -29,6 +29,7 @@ export function AdminStaff() {
   const [search, setSearch] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<AdminStaffPayload>(emptyForm);
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -50,6 +51,7 @@ export function AdminStaff() {
   const reset = () => {
     setEditingId(null);
     setForm(emptyForm);
+    setShowPassword(false);
   };
 
   const edit = (staff: Staff) => {
@@ -62,6 +64,7 @@ export function AdminStaff() {
       role: staff.role,
       active: staff.active,
     });
+    setShowPassword(false);
   };
 
   const save = async () => {
@@ -74,6 +77,7 @@ export function AdminStaff() {
         phone: form.phone?.trim() || undefined,
         password: form.password?.trim() || undefined,
       };
+
       if (editingId) {
         await adminService.updateStaff(editingId, payload);
         toast.success('Đã cập nhật nhân viên.');
@@ -85,6 +89,7 @@ export function AdminStaff() {
         await adminService.createStaff(payload);
         toast.success('Đã tạo nhân viên.');
       }
+
       reset();
       await load();
     } catch (error: any) {
@@ -99,10 +104,13 @@ export function AdminStaff() {
       <div className="flex items-start justify-between gap-4">
         <div>
           <h2 className="text-2xl font-semibold">Quản lý nhân viên</h2>
-          <p className="text-sm text-muted-foreground">Chỉ admin được tạo, sửa, khóa/mở khóa và gán vai trò nhân viên/admin.</p>
+          <p className="text-sm text-muted-foreground">
+            Chỉ admin được tạo, sửa, khóa/mở khóa và gán vai trò nhân viên/admin.
+          </p>
         </div>
         <Button onClick={reset} className="bg-orange-600 hover:bg-orange-700">
-          <Plus className="w-4 h-4 mr-2" />Thêm nhân viên
+          <Plus className="w-4 h-4 mr-2" />
+          Thêm nhân viên
         </Button>
       </div>
 
@@ -111,7 +119,12 @@ export function AdminStaff() {
           <div className="p-4 border-b">
             <div className="relative max-w-sm">
               <Search className="absolute left-3 top-2.5 w-4 h-4 text-muted-foreground" />
-              <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Tìm tên, email, số điện thoại..." className="w-full border rounded-lg pl-9 pr-3 py-2 text-sm" />
+              <input
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Tìm tên, email, số điện thoại..."
+                className="w-full border rounded-lg pl-9 pr-3 py-2 text-sm"
+              />
             </div>
           </div>
 
@@ -156,7 +169,9 @@ export function AdminStaff() {
                       <td className="p-4 text-muted-foreground">{formatDate(staff.created_at)}</td>
                       <td className="p-4">
                         <div className="flex justify-end gap-2">
-                          <button onClick={() => edit(staff)} className="p-2 text-blue-600"><Edit2 className="w-4 h-4" /></button>
+                          <button onClick={() => edit(staff)} className="p-2 text-blue-600">
+                            <Edit2 className="w-4 h-4" />
+                          </button>
                           <button
                             onClick={async () => {
                               if (!confirm(`${staff.active ? 'Khóa' : 'Mở khóa'} tài khoản "${staff.name}"?`)) return;
@@ -184,12 +199,52 @@ export function AdminStaff() {
         <aside className="bg-white border rounded-xl p-5 h-fit">
           <h3 className="font-semibold mb-4">{editingId ? 'Sửa nhân viên' : 'Thêm nhân viên'}</h3>
           <div className="space-y-3">
-            <label className="block text-sm">Họ tên *<input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="mt-1 w-full border rounded-lg px-3 py-2" /></label>
-            <label className="block text-sm">Email *<input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="mt-1 w-full border rounded-lg px-3 py-2" /></label>
-            <label className="block text-sm">Số điện thoại<input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="mt-1 w-full border rounded-lg px-3 py-2" /></label>
-            <label className="block text-sm">{editingId ? 'Mật khẩu mới' : 'Mật khẩu ban đầu *'}<input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder={editingId ? 'Để trống nếu không đổi' : ''} className="mt-1 w-full border rounded-lg px-3 py-2" /></label>
-            <label className="block text-sm">Vai trò<select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value as AdminStaffPayload['role'] })} className="mt-1 w-full border rounded-lg px-3 py-2"><option value="staff">Nhân viên</option><option value="admin">Admin</option></select></label>
-            <label className="block text-sm">Trạng thái<select value={form.active ? '1' : '0'} onChange={(e) => setForm({ ...form, active: e.target.value === '1' })} className="mt-1 w-full border rounded-lg px-3 py-2"><option value="1">Hoạt động</option><option value="0">Khóa</option></select></label>
+            <label className="block text-sm">
+              Họ tên *
+              <input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} className="mt-1 w-full border rounded-lg px-3 py-2" />
+            </label>
+            <label className="block text-sm">
+              Email *
+              <input type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} className="mt-1 w-full border rounded-lg px-3 py-2" />
+            </label>
+            <label className="block text-sm">
+              Số điện thoại
+              <input value={form.phone} onChange={(event) => setForm({ ...form, phone: event.target.value })} className="mt-1 w-full border rounded-lg px-3 py-2" />
+            </label>
+            <label className="block text-sm">
+              {editingId ? 'Mật khẩu mới' : 'Mật khẩu ban đầu *'}
+              <div className="relative mt-1">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={form.password}
+                  onChange={(event) => setForm({ ...form, password: event.target.value })}
+                  placeholder={editingId ? 'Để trống nếu không đổi' : ''}
+                  className="w-full border rounded-lg px-3 py-2 pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((current) => !current)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-orange-600"
+                  title={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </label>
+            <label className="block text-sm">
+              Vai trò
+              <select value={form.role} onChange={(event) => setForm({ ...form, role: event.target.value as AdminStaffPayload['role'] })} className="mt-1 w-full border rounded-lg px-3 py-2">
+                <option value="staff">Nhân viên</option>
+                <option value="admin">Admin</option>
+              </select>
+            </label>
+            <label className="block text-sm">
+              Trạng thái
+              <select value={form.active ? '1' : '0'} onChange={(event) => setForm({ ...form, active: event.target.value === '1' })} className="mt-1 w-full border rounded-lg px-3 py-2">
+                <option value="1">Hoạt động</option>
+                <option value="0">Khóa</option>
+              </select>
+            </label>
             <div className="flex gap-2">
               {editingId && <Button variant="outline" onClick={reset}>Hủy</Button>}
               <Button onClick={save} disabled={saving || !form.name.trim() || !form.email.trim()} className="flex-1 bg-orange-600 hover:bg-orange-700">

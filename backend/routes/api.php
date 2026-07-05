@@ -99,26 +99,9 @@ Route::middleware('auth:sanctum')->group(function () {
         // Products
         Route::get   ('products',                [AdminProductController::class, 'index']);
         Route::get   ('products/options',        [AdminProductController::class, 'options']);
-        Route::post  ('products/images',         [AdminProductController::class, 'uploadImages']);
         Route::get   ('products/{id}',           [AdminProductController::class, 'show']);
-        Route::post  ('products',                [AdminProductController::class, 'store']);
-        Route::put   ('products/{id}',           [AdminProductController::class, 'update']);
-        Route::delete('products/{id}',           [AdminProductController::class, 'destroy']);
+        Route::put   ('products/{id}/hide',      [AdminProductController::class, 'hide']);
         Route::put   ('variants/{id}',           [AdminProductController::class, 'updateVariant']);
-
-        Route::get   ('categories',              [AdminCategoryController::class, 'index']);
-        Route::post  ('categories',              [AdminCategoryController::class, 'store']);
-        Route::put   ('categories/{id}',         [AdminCategoryController::class, 'update']);
-        Route::delete('categories/{id}',         [AdminCategoryController::class, 'destroy']);
-
-        Route::get   ('attributes',                  [AdminAttributeController::class, 'index']);
-        Route::post  ('attributes',                  [AdminAttributeController::class, 'store']);
-        Route::get   ('attributes/{id}',             [AdminAttributeController::class, 'show']);
-        Route::put   ('attributes/{id}',             [AdminAttributeController::class, 'update']);
-        Route::delete('attributes/{id}',             [AdminAttributeController::class, 'destroy']);
-        Route::post  ('attributes/{id}/values',      [AdminAttributeController::class, 'storeValue']);
-        Route::put   ('attributes/{id}/values/{valueId}', [AdminAttributeController::class, 'updateValue']);
-        Route::delete('attributes/{id}/values/{valueId}', [AdminAttributeController::class, 'destroyValue']);
 
         Route::get('reviews', [AdminReviewController::class, 'index']);
         Route::put('reviews/{id}/status', [AdminReviewController::class, 'moderate']);
@@ -141,6 +124,28 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('orders/{id}/status',         [AdminOrderController::class, 'updateStatus']);
         Route::put('orders/{id}/payment-status', [AdminOrderController::class, 'updatePaymentStatus']);
         Route::middleware('role:'.UserRole::ADMIN)->group(function () {
+            Route::post  ('products/images',         [AdminProductController::class, 'uploadImages']);
+            Route::post  ('products',                [AdminProductController::class, 'store']);
+            Route::put   ('products/{id}',           [AdminProductController::class, 'update']);
+            Route::delete('products/{id}',           [AdminProductController::class, 'destroy']);
+
+            Route::get   ('categories',              [AdminCategoryController::class, 'index']);
+            Route::post  ('categories',              [AdminCategoryController::class, 'store']);
+            Route::put   ('categories/{id}',         [AdminCategoryController::class, 'update']);
+            Route::delete('categories/{id}',         [AdminCategoryController::class, 'destroy']);
+
+            Route::get   ('attributes',                  [AdminAttributeController::class, 'index']);
+            Route::post  ('attributes',                  [AdminAttributeController::class, 'store']);
+            Route::get   ('attributes/{id}',             [AdminAttributeController::class, 'show']);
+            Route::put   ('attributes/{id}',             [AdminAttributeController::class, 'update']);
+            Route::delete('attributes/{id}',             [AdminAttributeController::class, 'destroy']);
+            Route::post  ('attributes/{id}/values',      [AdminAttributeController::class, 'storeValue']);
+            Route::put   ('attributes/{id}/values/{valueId}', [AdminAttributeController::class, 'updateValue']);
+            Route::delete('attributes/{id}/values/{valueId}', [AdminAttributeController::class, 'destroyValue']);
+
+            Route::put('inventory/receipts/{id}/approve', [AdminInventoryController::class, 'approveReceipt']);
+            Route::put('inventory/receipts/{id}/reject', [AdminInventoryController::class, 'rejectReceipt']);
+
             Route::apiResource('promotions', AdminPromotionController::class)->except(['show']);
             Route::put('reviews/{id}/reply', [AdminReviewController::class, 'reply']);
             Route::delete('reviews/{id}/reply', [AdminReviewController::class, 'deleteReply']);

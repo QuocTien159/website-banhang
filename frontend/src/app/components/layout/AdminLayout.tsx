@@ -55,7 +55,7 @@ const websiteItems = [
   { label: 'Nhân viên', href: '/admin/staff', icon: Users },
 ];
 
-const adminOnlyPaths = ['/admin', '/admin/promotions', '/admin/announcements', '/admin/payment-shipping', '/admin/customers', '/admin/staff'];
+const adminOnlyPaths = ['/admin', '/admin/categories', '/admin/attributes', '/admin/promotions', '/admin/announcements', '/admin/payment-shipping', '/admin/customers', '/admin/staff'];
 const staffHome = '/admin/products';
 const allItems = [...mainItems, ...inventoryItems, ...orderItems, ...configItems, ...websiteItems];
 

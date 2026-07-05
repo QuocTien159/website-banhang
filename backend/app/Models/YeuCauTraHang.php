@@ -48,4 +48,14 @@ class YeuCauTraHang extends Model
     {
         return $this->hasMany(HinhAnhTraHang::class, 'ma_yeu_cau', 'ma_yeu_cau');
     }
+
+    public function lichSuXuLy()
+    {
+        return $this->hasMany(LichSuXuLyTraHang::class, 'ma_yeu_cau', 'ma_yeu_cau');
+    }
+
+    public function xuLyGanNhat()
+    {
+        return $this->hasOne(LichSuXuLyTraHang::class, 'ma_yeu_cau', 'ma_yeu_cau')->latestOfMany('thoi_gian_xu_ly');
+    }
 }

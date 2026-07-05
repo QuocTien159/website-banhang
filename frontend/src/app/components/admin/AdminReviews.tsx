@@ -15,6 +15,8 @@ type AdminReview = {
   status: 'pending' | 'approved' | 'rejected';
   reply?: string | null;
   created_at?: string;
+  last_processed_by?: string | null;
+  last_processed_at?: string | null;
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -96,6 +98,7 @@ export function AdminReviews() {
                 <div>
                   <h3 className="font-semibold">{review.product}</h3>
                   <p className="text-sm text-muted-foreground">{review.customer}</p>
+                  {review.last_processed_by && <p className="text-xs text-muted-foreground mt-1">Xử lý gần nhất: {review.last_processed_by}</p>}
                   <div className="flex items-center gap-1 mt-2">
                     {[1, 2, 3, 4, 5].map((star) => (
                       <Star key={star} className={`w-4 h-4 ${star <= review.rating ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'}`} />

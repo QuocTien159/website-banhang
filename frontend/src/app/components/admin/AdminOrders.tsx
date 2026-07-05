@@ -40,6 +40,8 @@ interface AdminOrder {
   paymentStatus: string;
   bankTransferContent?: string;
   customerPaidAt?: string | null;
+  lastProcessedBy?: string | null;
+  lastProcessedAt?: string | null;
   createdAt: string | null;
   createdAtFormatted?: string | null;
   productCount: number;
@@ -86,6 +88,8 @@ const normalizeOrder = (raw: RawAdminOrder): AdminOrder => {
     paymentStatus: raw.payment_status ?? raw.trang_thai_thanh_toan ?? '',
     bankTransferContent: raw.bank_transfer_content ?? raw.noi_dung_chuyen_khoan ?? '',
     customerPaidAt: raw.customer_paid_at ?? raw.khach_bao_da_chuyen_at ?? null,
+    lastProcessedBy: raw.last_processed_by ?? null,
+    lastProcessedAt: raw.last_processed_at ?? null,
     createdAt: raw.created_at ?? raw.createdAt ?? raw.order_date ?? raw.ngay_dat ?? raw.date ?? null,
     createdAtFormatted: raw.created_at_formatted ?? raw.date ?? null,
     productCount: Number(raw.total_quantity ?? raw.items_count ?? raw.item_count ?? productCountFromItems ?? 0),
@@ -222,6 +226,11 @@ export function AdminOrders() {
                         <p className="text-xs text-muted-foreground mt-1">
                           Nội dung CK: <span className="font-medium">{order.bankTransferContent || 'Chưa có'}</span>
                           {order.customerPaidAt ? ` · Khách báo: ${formatDateSafe(order.customerPaidAt)}` : ''}
+                        </p>
+                      )}
+                      {order.lastProcessedBy && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Xử lý gần nhất: <span className="font-medium">{order.lastProcessedBy}</span>{order.lastProcessedAt ? ` · ${formatDateSafe(order.lastProcessedAt)}` : ''}
                         </p>
                       )}
                     </div>

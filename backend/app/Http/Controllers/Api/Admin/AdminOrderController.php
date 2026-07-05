@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\DonHang;
+use App\Models\LichSuXuLyDonHang;
 use App\Services\InventoryService;
 use App\Support\OrderStatus;
 use App\Support\PaymentStatus;
@@ -14,7 +15,7 @@ class AdminOrderController extends Controller
 {
     public function index(Request $request)
     {
-        $query = DonHang::with(['khachHang', 'chiTiets']);
+        $query = DonHang::with(['khachHang', 'chiTiets', 'xuLyGanNhat.nguoiXuLy']);
 
         if ($status = $request->input('status')) {
             $query->where('trang_thai', $status);
@@ -58,6 +59,8 @@ class AdminOrderController extends Controller
                     'item_count' => $itemCount,
                     'items_count' => $totalQuantity,
                     'total_quantity' => $totalQuantity,
+                    'last_processed_by' => $order->xuLyGanNhat?->nguoiXuLy?->ten_kh,
+                    'last_processed_at' => $order->xuLyGanNhat?->thoi_gian_xu_ly?->toISOString(),
                 ];
             }),
             'meta' => [
@@ -73,13 +76,14 @@ class AdminOrderController extends Controller
     {
         $data = $request->validate([
             'status' => ['required', 'in:'.implode(',', OrderStatus::ALL)],
+            'note' => ['nullable', 'string', 'max:1000'],
         ]);
 
         $order = DonHang::findOrFail($id);
         $oldStatus = $order->trang_thai;
 
         if ($data['status'] === OrderStatus::CANCELLED && $oldStatus !== OrderStatus::CANCELLED) {
-            DB::transaction(function () use ($order, $data, $request, $inventoryService) {
+            DB::transaction(function () use ($order, $oldStatus, $data, $request, $inventoryService) {
                 foreach ($order->chiTiets as $item) {
                     $inventoryService->changeStock(
                         $item->ma_bien_the,
@@ -91,9 +95,13 @@ class AdminOrderController extends Controller
                     );
                 }
                 $order->update(['trang_thai' => $data['status']]);
+                $this->recordStatusHistory($order, $oldStatus, $data['status'], $request->user()->ma_kh, $data['note'] ?? null);
             });
         } else {
-            $order->update(['trang_thai' => $data['status']]);
+            DB::transaction(function () use ($order, $oldStatus, $data, $request) {
+                $order->update(['trang_thai' => $data['status']]);
+                $this->recordStatusHistory($order, $oldStatus, $data['status'], $request->user()->ma_kh, $data['note'] ?? null);
+            });
         }
 
         return response()->json(['message' => 'Đã cập nhật trạng thái đơn hàng.', 'status' => $data['status']]);
@@ -138,5 +146,17 @@ class AdminOrderController extends Controller
             OrderStatus::DELIVERED => DonHang::where('trang_thai', OrderStatus::DELIVERED)->count(),
             OrderStatus::CANCELLED => DonHang::where('trang_thai', OrderStatus::CANCELLED)->count(),
         ];
+    }
+
+    private function recordStatusHistory(DonHang $order, ?string $oldStatus, string $newStatus, ?string $actorId, ?string $note = null): void
+    {
+        LichSuXuLyDonHang::create([
+            'ma_dh' => $order->ma_dh,
+            'trang_thai_cu' => $oldStatus,
+            'trang_thai_moi' => $newStatus,
+            'ma_nguoi_xu_ly' => $actorId,
+            'thoi_gian_xu_ly' => now(),
+            'ghi_chu' => $note,
+        ]);
     }
 }

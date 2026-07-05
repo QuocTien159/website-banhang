@@ -23,11 +23,16 @@ class PhieuNhapKho extends Model
         'ngay_nhap',
         'ma_nguoi_nhap',
         'ghi_chu',
+        'trang_thai',
+        'ma_nguoi_duyet',
+        'ngay_duyet',
+        'ghi_chu_duyet',
         'ngay_tao',
     ];
 
     protected $casts = [
         'ngay_nhap' => 'date',
+        'ngay_duyet' => 'datetime',
         'ngay_tao' => 'datetime',
     ];
 
@@ -39,5 +44,10 @@ class PhieuNhapKho extends Model
     public function nguoiNhap()
     {
         return $this->belongsTo(KhachHang::class, 'ma_nguoi_nhap', 'ma_kh');
+    }
+
+    public function nguoiDuyet()
+    {
+        return $this->belongsTo(KhachHang::class, 'ma_nguoi_duyet', 'ma_kh');
     }
 }

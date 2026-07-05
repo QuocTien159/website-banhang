@@ -42,4 +42,14 @@ class DanhGia extends Model
     {
         return $this->hasMany(HinhAnhDanhGia::class, 'ma_danh_gia', 'ma_danh_gia');
     }
+
+    public function lichSuXuLy()
+    {
+        return $this->hasMany(LichSuXuLyDanhGia::class, 'ma_danh_gia', 'ma_danh_gia');
+    }
+
+    public function xuLyGanNhat()
+    {
+        return $this->hasOne(LichSuXuLyDanhGia::class, 'ma_danh_gia', 'ma_danh_gia')->latestOfMany('thoi_gian_xu_ly');
+    }
 }

@@ -6,9 +6,12 @@ use App\Models\BienTheSanPham;
 use App\Models\GioHang;
 use App\Models\KhachHang;
 use App\Models\LichSuBienDongKho;
+use App\Models\PhieuNhapKho;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Schema;
 
 class InventoryManagementTest extends TestCase
 {
@@ -25,12 +28,34 @@ class InventoryManagementTest extends TestCase
         Sanctum::actingAs($this->admin);
     }
 
-    public function test_admin_can_import_one_variant_and_stock_movement_is_created(): void
+    public function test_receipt_approval_columns_exist(): void
+    {
+        $this->assertTrue(Schema::hasColumn('phieu_nhap_kho', 'trang_thai'));
+        $this->assertTrue(Schema::hasColumn('phieu_nhap_kho', 'ma_nguoi_duyet'));
+        $this->assertTrue(Schema::hasColumn('phieu_nhap_kho', 'ngay_duyet'));
+        $this->assertTrue(Schema::hasColumn('phieu_nhap_kho', 'ghi_chu_duyet'));
+    }
+
+    private function createStaff(): KhachHang
+    {
+        return KhachHang::create([
+            'ten_kh' => 'NhÃ¢n viÃªn Kho',
+            'email' => 'warehouse-staff@example.com',
+            'mat_khau' => Hash::make('staff123'),
+            'dien_thoai' => '0933333333',
+            'vai_tro' => false,
+            'role' => 'staff',
+            'trang_thai' => true,
+            'ngay_tao' => now(),
+        ]);
+    }
+
+    public function test_receipt_waits_for_approval_before_stock_is_changed(): void
     {
         $variant = BienTheSanPham::firstOrFail();
         $stockBefore = $variant->so_luong_ton;
 
-        $this->postJson('/api/admin/inventory/receipts', [
+        $receiptId = $this->postJson('/api/admin/inventory/receipts', [
             'code' => 'NK-TEST-ONE',
             'import_date' => now()->format('Y-m-d'),
             'note' => 'Nhập kiểm thử',
@@ -40,7 +65,16 @@ class InventoryManagementTest extends TestCase
         ])
             ->assertCreated()
             ->assertJsonPath('receipt.code', 'NK-TEST-ONE')
-            ->assertJsonPath('receipt.total_quantity', 7);
+            ->assertJsonPath('receipt.status', 'pending')
+            ->assertJsonPath('receipt.total_quantity', 7)
+            ->json('receipt.id');
+
+        $this->assertSame($stockBefore, $variant->fresh()->so_luong_ton);
+        $this->assertSame(0, LichSuBienDongKho::where('ma_tham_chieu', 'NK-TEST-ONE')->count());
+
+        $this->putJson("/api/admin/inventory/receipts/{$receiptId}/approve")
+            ->assertOk()
+            ->assertJsonPath('receipt.status', 'approved');
 
         $this->assertSame($stockBefore + 7, $variant->fresh()->so_luong_ton);
         $this->assertDatabaseHas('lich_su_bien_dong_kho', [
@@ -70,6 +104,43 @@ class InventoryManagementTest extends TestCase
         $this->getJson('/api/admin/inventory/receipts?search=NK-TEST-MULTI')
             ->assertOk()
             ->assertJsonPath('data.0.code', 'NK-TEST-MULTI');
+    }
+
+    public function test_staff_created_receipt_does_not_change_stock_and_staff_cannot_approve(): void
+    {
+        $staff = $this->createStaff();
+        $variant = BienTheSanPham::firstOrFail();
+        $stockBefore = $variant->so_luong_ton;
+
+        Sanctum::actingAs($staff);
+        $receiptId = $this->postJson('/api/admin/inventory/receipts', [
+            'code' => 'NK-STAFF-PENDING',
+            'import_date' => now()->format('Y-m-d'),
+            'items' => [
+                ['variant_id' => $variant->ma_bt, 'quantity' => 4],
+            ],
+        ])
+            ->assertCreated()
+            ->assertJsonPath('receipt.status', 'pending')
+            ->json('receipt.id');
+
+        $this->assertSame($stockBefore, $variant->fresh()->so_luong_ton);
+        $this->assertSame(0, LichSuBienDongKho::where('ma_tham_chieu', 'NK-STAFF-PENDING')->count());
+
+        $this->putJson("/api/admin/inventory/receipts/{$receiptId}/approve")->assertForbidden();
+
+        Sanctum::actingAs($this->admin);
+        $this->putJson("/api/admin/inventory/receipts/{$receiptId}/approve")
+            ->assertOk()
+            ->assertJsonPath('receipt.status', 'approved');
+
+        $this->assertSame($stockBefore + 4, $variant->fresh()->so_luong_ton);
+        $this->assertDatabaseHas('lich_su_bien_dong_kho', [
+            'ma_bien_the' => $variant->ma_bt,
+            'so_luong_thay_doi' => 4,
+            'ma_nguoi_thuc_hien' => $this->admin->ma_kh,
+            'ma_tham_chieu' => 'NK-STAFF-PENDING',
+        ]);
     }
 
     public function test_import_rejects_invalid_or_duplicate_quantity_lines(): void
@@ -154,5 +225,10 @@ class InventoryManagementTest extends TestCase
 
         $this->assertSame($stockBefore, $variant->fresh()->so_luong_ton);
         $this->assertSame(1, LichSuBienDongKho::where('ma_tham_chieu', $orderId)->where('loai_bien_dong', 'order_cancelled')->count());
+        $this->assertDatabaseHas('lich_su_xu_ly_don_hang', [
+            'ma_dh' => $orderId,
+            'trang_thai_moi' => 'cancelled',
+            'ma_nguoi_xu_ly' => $this->admin->ma_kh,
+        ]);
     }
 }

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Edit2, ImagePlus, Loader2, Plus, Search, Trash2, X } from 'lucide-react';
+import { Edit2, EyeOff, ImagePlus, Loader2, Plus, Search, Trash2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   adminService,
@@ -9,6 +9,7 @@ import {
   type AdminProductSummary,
   type AdminVariant,
 } from '../../services/orderService';
+import { useAuth } from '../../store/AppContext';
 import { ImageWithFallback } from '../figma/ImageWithFallback';
 import { Button } from '../ui/button';
 
@@ -44,6 +45,8 @@ const errorText = (error: any) => {
 };
 
 export function AdminProducts() {
+  const { user } = useAuth();
+  const isStaff = user?.role === 'staff';
   const [products, setProducts] = useState<AdminProductSummary[]>([]);
   const [categories, setCategories] = useState<AdminCategory[]>([]);
   const [attributeOptions, setAttributeOptions] = useState<Record<string, string[]>>({});
@@ -83,14 +86,14 @@ export function AdminProducts() {
   };
 
   useEffect(() => {
-    Promise.all([adminService.getCategories(), adminService.getProductOptions()]).then(([categoryData, optionData]) => {
-      setCategories(categoryData);
+    Promise.all([isStaff ? Promise.resolve([]) : adminService.getCategories(), adminService.getProductOptions()]).then(([categoryData, optionData]) => {
+      setCategories(categoryData as AdminCategory[]);
       setAttributeOptions(Object.fromEntries(optionData.attributes.map((attribute) => [
         attribute.name,
         attribute.values.map((value) => typeof value === 'string' ? value : value.value),
       ])));
     });
-  }, []);
+  }, [isStaff]);
 
   useEffect(() => {
     const timer = window.setTimeout(loadProducts, 250);
@@ -182,6 +185,13 @@ export function AdminProducts() {
   const firstFieldError = (prefix: string) =>
     Object.entries(fieldErrors).find(([key]) => key === prefix || key.startsWith(`${prefix}.`))?.[1];
 
+  const hideProduct = async (product: AdminProductSummary) => {
+    if (!confirm(`Hide product "${product.name}"?`)) return;
+    await adminService.hideProduct(product.id);
+    toast.success('Product hidden.');
+    await loadProducts();
+  };
+
   return (
     <div className="space-y-5">
       <div className="flex items-start justify-between gap-4">
@@ -189,18 +199,18 @@ export function AdminProducts() {
           <h2 className="text-2xl font-semibold">Quản lý sản phẩm</h2>
           <p className="text-sm text-muted-foreground">Quản lý thông tin, hình ảnh, giá và ngưỡng cảnh báo. Tồn kho được cập nhật qua Nhập kho hoặc Điều chỉnh kho.</p>
         </div>
-        <Button onClick={openCreate} className="bg-orange-600 hover:bg-orange-700"><Plus className="w-4 h-4 mr-2" />Thêm sản phẩm</Button>
+        {!isStaff && <Button onClick={openCreate} className="bg-orange-600 hover:bg-orange-700"><Plus className="w-4 h-4 mr-2" />Thêm sản phẩm</Button>}
       </div>
 
-      <div className="bg-white border rounded-xl p-4 grid md:grid-cols-[1fr_220px_180px] gap-3">
+      <div className={`bg-white border rounded-xl p-4 grid ${isStaff ? 'md:grid-cols-[1fr_180px]' : 'md:grid-cols-[1fr_220px_180px]'} gap-3`}>
         <div className="relative">
           <Search className="absolute left-3 top-2.5 w-4 h-4 text-muted-foreground" />
           <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} placeholder="Tìm sản phẩm..." className="w-full border rounded-lg pl-9 pr-3 py-2 text-sm" />
         </div>
-        <select value={categoryFilter} onChange={(e) => { setCategoryFilter(e.target.value); setPage(1); }} className="border rounded-lg px-3 py-2 text-sm">
+        {!isStaff && <select value={categoryFilter} onChange={(e) => { setCategoryFilter(e.target.value); setPage(1); }} className="border rounded-lg px-3 py-2 text-sm">
           <option value="">Tất cả danh mục</option>
           {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
-        </select>
+        </select>}
         <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }} className="border rounded-lg px-3 py-2 text-sm">
           <option value="">Tất cả trạng thái</option>
           <option value="active">Đang bán</option>
@@ -232,11 +242,12 @@ export function AdminProducts() {
                   <td className="p-4 text-center">{product.variant_count}</td>
                   <td className="p-4 text-center"><span className={`px-2 py-1 rounded-full text-xs ${product.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>{product.status === 'active' ? 'Đang bán' : 'Ngừng bán'}</span></td>
                   <td className="p-4"><div className="flex justify-end gap-1">
-                    <button onClick={() => openEdit(product.id)} className="p-2 text-blue-600"><Edit2 className="w-4 h-4" /></button>
-                    <button onClick={async () => {
-                      if (!confirm(`Ngừng bán "${product.name}"?`)) return;
-                      await adminService.deleteProduct(product.id); toast.success('Đã ngừng bán sản phẩm.'); await loadProducts();
-                    }} className="p-2 text-red-600"><Trash2 className="w-4 h-4" /></button>
+                    {!isStaff && <button onClick={() => openEdit(product.id)} className="p-2 text-blue-600"><Edit2 className="w-4 h-4" /></button>}
+                    {product.status === 'active' && (
+                      <button onClick={() => hideProduct(product)} className="p-2 text-amber-600" title="Hide product">
+                        <EyeOff className="w-4 h-4" />
+                      </button>
+                    )}
                   </div></td>
                 </tr>
               ))}

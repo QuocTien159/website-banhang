@@ -101,6 +101,8 @@ class AdminProductController extends Controller
 
     public function store(Request $request)
     {
+        $this->abortUnlessAdmin($request);
+
         $data = $this->validateProduct($request);
         $this->validateVariantCombinations($data['variants']);
 
@@ -128,6 +130,8 @@ class AdminProductController extends Controller
 
     public function update(Request $request, string $id)
     {
+        $this->abortUnlessAdmin($request);
+
         $product = SanPham::with(['hinhAnhs', 'bienThes.chiTietDonHangs'])->findOrFail($id);
         $data = $this->validateProduct($request, $product);
         $this->validateVariantCombinations($data['variants'], $product);
@@ -159,6 +163,19 @@ class AdminProductController extends Controller
         return response()->json(['message' => 'Sản phẩm và các biến thể đã được ngừng bán.']);
     }
 
+    public function hide(Request $request, string $id)
+    {
+        $product = SanPham::findOrFail($id);
+        if ($product->trang_thai !== 'active') {
+            return response()->json(['message' => 'Sáº£n pháº©m khÃ´ng Ä‘ang hiá»ƒn thá»‹.'], 422);
+        }
+
+        $product->update(['trang_thai' => 'inactive']);
+        $product->bienThes()->update(['trang_thai' => false]);
+
+        return response()->json(['message' => 'ÄÃ£ áº©n sáº£n pháº©m.']);
+    }
+
     public function updateVariant(Request $request, string $id)
     {
         $variant = BienTheSanPham::findOrFail($id);
@@ -167,9 +184,21 @@ class AdminProductController extends Controller
             'nguong_canh_bao_ton' => ['sometimes', 'integer', 'min:0'],
             'trang_thai' => ['sometimes', 'boolean'],
         ]);
+
+        if (!$request->user()->isAdmin()) {
+            if (array_keys($data) !== ['trang_thai'] || $data['trang_thai'] !== false) {
+                return response()->json(['message' => 'NhÃ¢n viÃªn chá»‰ Ä‘Æ°á»£c ngá»«ng bÃ¡n biáº¿n thá»ƒ.'], 403);
+            }
+        }
+
         $variant->update($data);
 
         return response()->json(['message' => 'Đã cập nhật biến thể.', 'variant' => $variant]);
+    }
+
+    private function abortUnlessAdmin(Request $request): void
+    {
+        abort_unless($request->user()?->isAdmin(), 403, 'Báº¡n khÃ´ng cÃ³ quyá»n thá»±c hiá»‡n chá»©c nÄƒng nÃ y.');
     }
 
     private function validateProduct(Request $request, ?SanPham $product = null): array

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Loader2, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { adminService } from '../../services/orderService';
+import { useAuth } from '../../store/AppContext';
 import { Button } from '../ui/button';
 
 type InventoryVariant = {
@@ -28,6 +29,8 @@ const errorText = (error: any) => {
 };
 
 export function AdminStockImport() {
+  const { user } = useAuth();
+  const isStaff = user?.role === 'staff';
   const [variants, setVariants] = useState<InventoryVariant[]>([]);
   const [code, setCode] = useState('');
   const [importDate, setImportDate] = useState(today());
@@ -85,7 +88,7 @@ export function AdminStockImport() {
     <div className="space-y-5">
       <div>
         <h2 className="text-2xl font-semibold">Nhập kho</h2>
-        <p className="text-sm text-muted-foreground">Tạo phiếu nhập và tự động cộng tồn kho cho từng SKU/biến thể.</p>
+        <p className="text-sm text-muted-foreground">Tạo phiếu nhập chờ admin duyệt. Tồn kho chỉ cập nhật sau khi phiếu được duyệt.</p>
       </div>
 
       <div className="bg-white border rounded-xl p-5 space-y-4">
@@ -147,7 +150,7 @@ export function AdminStockImport() {
 
         <div className="flex justify-end">
           <Button onClick={submit} disabled={saving} className="bg-orange-600 hover:bg-orange-700">
-            {saving && <Loader2 className="w-4 h-4 animate-spin mr-2" />}Lưu phiếu nhập
+            {saving && <Loader2 className="w-4 h-4 animate-spin mr-2" />}{isStaff ? 'Gửi phiếu chờ duyệt' : 'Tạo phiếu chờ duyệt'}
           </Button>
         </div>
       </div>

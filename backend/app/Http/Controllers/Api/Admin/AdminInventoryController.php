@@ -34,7 +34,11 @@ class AdminInventoryController extends Controller
 
     public function receipts(Request $request)
     {
-        $query = PhieuNhapKho::with(['nguoiNhap', 'chiTiets.bienThe.sanPham']);
+        $query = PhieuNhapKho::with(['nguoiNhap', 'nguoiDuyet', 'chiTiets.bienThe.sanPham']);
+
+        if (!$request->user()->isAdmin()) {
+            $query->where('ma_nguoi_nhap', $request->user()->ma_kh);
+        }
 
         if ($search = $request->input('search')) {
             $query->where(function ($q) use ($search) {
@@ -69,7 +73,7 @@ class AdminInventoryController extends Controller
         ]);
     }
 
-    public function storeReceipt(Request $request, InventoryService $inventoryService)
+    public function storeReceipt(Request $request)
     {
         $data = $request->validate([
             'code' => ['nullable', 'string', 'max:50', Rule::unique('phieu_nhap_kho', 'ma_phieu')],
@@ -86,12 +90,13 @@ class AdminInventoryController extends Controller
             throw ValidationException::withMessages(['items' => 'Không được nhập trùng cùng một SKU trong một phiếu.']);
         }
 
-        $receipt = DB::transaction(function () use ($data, $request, $inventoryService) {
+        $receipt = DB::transaction(function () use ($data, $request) {
             $receipt = PhieuNhapKho::create([
                 'ma_phieu' => $data['code'] ?? $this->generateReceiptCode(),
                 'ngay_nhap' => $data['import_date'],
                 'ma_nguoi_nhap' => $request->user()->ma_kh,
                 'ghi_chu' => $data['note'] ?? null,
+                'trang_thai' => 'pending',
                 'ngay_tao' => now(),
             ]);
 
@@ -103,12 +108,62 @@ class AdminInventoryController extends Controller
                     'ghi_chu' => $item['note'] ?? null,
                 ]);
 
+            }
+
+            return $receipt;
+        });
+
+        return response()->json([
+            'message' => 'Đã tạo phiếu nhập kho.',
+            'receipt' => $this->formatReceiptDetail($receipt->fresh(['nguoiNhap', 'nguoiDuyet', 'chiTiets.bienThe.sanPham.anhChinh', 'chiTiets.bienThe.giaTriThuocTinhs.thuocTinh'])),
+        ], 201);
+    }
+
+    public function showReceipt(Request $request, string $id)
+    {
+        $receipt = PhieuNhapKho::with(['nguoiNhap', 'nguoiDuyet', 'chiTiets.bienThe.sanPham.anhChinh', 'chiTiets.bienThe.giaTriThuocTinhs.thuocTinh'])
+            ->where('ma_pnk', $id)
+            ->orWhere('ma_phieu', $id)
+            ->firstOrFail();
+
+        if (!$request->user()->isAdmin() && $receipt->ma_nguoi_nhap !== $request->user()->ma_kh) {
+            abort(403, 'Báº¡n khÃ´ng cÃ³ quyá»n xem phiáº¿u nháº­p nÃ y.');
+        }
+
+        return response()->json($this->formatReceiptDetail($receipt));
+    }
+
+    public function approveReceipt(Request $request, string $id, InventoryService $inventoryService)
+    {
+        $data = $request->validate([
+            'approval_note' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        $receipt = DB::transaction(function () use ($id, $request, $data, $inventoryService) {
+            $receipt = PhieuNhapKho::with('chiTiets')
+                ->where('ma_pnk', $id)
+                ->orWhere('ma_phieu', $id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            if ($receipt->trang_thai !== 'pending') {
+                throw ValidationException::withMessages(['receipt' => 'Phiáº¿u nháº­p nÃ y khÃ´ng cÃ²n chá» duyá»‡t.']);
+            }
+
+            $receipt->update([
+                'trang_thai' => 'approved',
+                'ma_nguoi_duyet' => $request->user()->ma_kh,
+                'ngay_duyet' => now(),
+                'ghi_chu_duyet' => $data['approval_note'] ?? null,
+            ]);
+
+            foreach ($receipt->chiTiets as $item) {
                 $inventoryService->changeStock(
-                    $item['variant_id'],
-                    (int) $item['quantity'],
+                    $item->ma_bien_the,
+                    (int) $item->so_luong,
                     'stock_import',
                     $request->user()->ma_kh,
-                    $item['note'] ?? $data['note'] ?? null,
+                    $item->ghi_chu ?? $receipt->ghi_chu ?? null,
                     $receipt->ma_phieu
                 );
             }
@@ -117,19 +172,36 @@ class AdminInventoryController extends Controller
         });
 
         return response()->json([
-            'message' => 'Đã tạo phiếu nhập kho.',
-            'receipt' => $this->formatReceiptDetail($receipt->fresh(['nguoiNhap', 'chiTiets.bienThe.sanPham.anhChinh', 'chiTiets.bienThe.giaTriThuocTinhs.thuocTinh'])),
-        ], 201);
+            'message' => 'ÄÃ£ duyá»‡t phiáº¿u nháº­p vÃ  cá»™ng tá»“n kho.',
+            'receipt' => $this->formatReceiptDetail($receipt->fresh(['nguoiNhap', 'nguoiDuyet', 'chiTiets.bienThe.sanPham.anhChinh', 'chiTiets.bienThe.giaTriThuocTinhs.thuocTinh'])),
+        ]);
     }
 
-    public function showReceipt(string $id)
+    public function rejectReceipt(Request $request, string $id)
     {
-        $receipt = PhieuNhapKho::with(['nguoiNhap', 'chiTiets.bienThe.sanPham.anhChinh', 'chiTiets.bienThe.giaTriThuocTinhs.thuocTinh'])
-            ->where('ma_pnk', $id)
+        $data = $request->validate([
+            'approval_note' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        $receipt = PhieuNhapKho::where('ma_pnk', $id)
             ->orWhere('ma_phieu', $id)
             ->firstOrFail();
 
-        return response()->json($this->formatReceiptDetail($receipt));
+        if ($receipt->trang_thai !== 'pending') {
+            throw ValidationException::withMessages(['receipt' => 'Phiáº¿u nháº­p nÃ y khÃ´ng cÃ²n chá» duyá»‡t.']);
+        }
+
+        $receipt->update([
+            'trang_thai' => 'rejected',
+            'ma_nguoi_duyet' => $request->user()->ma_kh,
+            'ngay_duyet' => now(),
+            'ghi_chu_duyet' => $data['approval_note'] ?? null,
+        ]);
+
+        return response()->json([
+            'message' => 'ÄÃ£ tá»« chá»‘i phiáº¿u nháº­p.',
+            'receipt' => $this->formatReceiptDetail($receipt->fresh(['nguoiNhap', 'nguoiDuyet', 'chiTiets.bienThe.sanPham.anhChinh', 'chiTiets.bienThe.giaTriThuocTinhs.thuocTinh'])),
+        ]);
     }
 
     public function movements(Request $request)
@@ -226,6 +298,10 @@ class AdminInventoryController extends Controller
             'code' => $receipt->ma_phieu,
             'import_date' => $receipt->ngay_nhap?->format('Y-m-d'),
             'importer' => $receipt->nguoiNhap?->ten_kh,
+            'status' => $receipt->trang_thai,
+            'approved_by' => $receipt->nguoiDuyet?->ten_kh,
+            'approved_at' => $receipt->ngay_duyet?->toISOString(),
+            'approval_note' => $receipt->ghi_chu_duyet,
             'item_count' => $receipt->chiTiets->count(),
             'total_quantity' => $receipt->chiTiets->sum('so_luong'),
             'note' => $receipt->ghi_chu,
