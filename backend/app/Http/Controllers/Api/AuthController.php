@@ -85,6 +85,38 @@ class AuthController extends Controller
         return response()->json(['user' => $this->formatUser($request->user())]);
     }
 
+    public function updateProfile(Request $request)
+    {
+        /** @var KhachHang $user */
+        $user = $request->user();
+
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:50'],
+            'phone' => ['nullable', 'string', 'regex:/^[0-9]{10,11}$/', 'unique:khach_hang,dien_thoai,'.$user->ma_kh.',ma_kh'],
+            'current_password' => ['nullable', 'required_with:new_password', 'string'],
+            'new_password' => ['nullable', 'string', 'min:6', 'confirmed'],
+        ]);
+
+        if (!empty($data['new_password'])) {
+            if (!Hash::check($data['current_password'] ?? '', $user->mat_khau)) {
+                throw ValidationException::withMessages([
+                    'current_password' => ['Mat khau hien tai khong dung.'],
+                ]);
+            }
+
+            $user->mat_khau = Hash::make($data['new_password']);
+        }
+
+        $user->ten_kh = trim($data['name']);
+        $user->dien_thoai = $data['phone'] ?? null;
+        $user->save();
+
+        return response()->json([
+            'message' => 'Profile updated.',
+            'user' => $this->formatUser($user->fresh()),
+        ]);
+    }
+
     private function formatUser(KhachHang $user): array
     {
         return [

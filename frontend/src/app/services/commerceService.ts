@@ -11,6 +11,20 @@ export interface Announcement {
 export interface ReviewCandidate {
   order_id: string; product_id: string; product_name: string; image: string | null;
 }
+export interface MyReview {
+  id: string;
+  rating: number;
+  comment: string;
+  images: string[];
+  status: 'pending' | 'approved' | 'rejected';
+  date?: string;
+  created_at?: string;
+  updated_at?: string | null;
+  admin_reply?: string | null;
+  admin_replied_at?: string | null;
+  product?: { id: string; name: string; image: string | null };
+  order_id?: string | null;
+}
 export interface ReturnRequestItemPayload {
   variant_id: string;
   quantity: number;
@@ -26,13 +40,16 @@ export const commerceService = {
   async validateCoupon(code: string) { return (await apiClient.post('/promotions/validate', { code })).data; },
   async announcements(): Promise<Announcement[]> { return (await apiClient.get('/announcements')).data; },
   async eligibleReviews(): Promise<ReviewCandidate[]> { return (await apiClient.get('/reviews/eligible')).data; },
-  async myReviews() { return (await apiClient.get('/reviews/mine')).data; },
+  async myReviews(): Promise<MyReview[]> { return (await apiClient.get('/reviews/mine')).data; },
   async uploadReviewImages(files: File[]): Promise<string[]> {
     const form = new FormData(); files.forEach((file) => form.append('images[]', file));
     return (await apiClient.post('/reviews/images', form, { headers: { 'Content-Type': 'multipart/form-data' } })).data.images;
   },
   async createReview(payload: { order_id: string; product_id: string; rating: number; comment: string; images: string[] }) {
     return (await apiClient.post('/reviews', payload)).data;
+  },
+  async updateReview(id: string, payload: { rating: number; comment: string; images: string[] }) {
+    return (await apiClient.put(`/reviews/${id}`, payload)).data;
   },
   async returns() { return (await apiClient.get('/returns')).data; },
   async createReturn(payload: { order_id: string; reason: string; description?: string; items: ReturnRequestItemPayload[] }) {

@@ -67,6 +67,18 @@ export const authService = {
     return data.user;
   },
 
+  async updateProfile(payload: {
+    name: string;
+    phone?: string | null;
+    current_password?: string;
+    new_password?: string;
+    new_password_confirmation?: string;
+  }): Promise<{ message: string; user: ApiUser }> {
+    const { data } = await apiClient.put<{ message: string; user: ApiUser }>('/auth/profile', payload);
+    sessionStorage.setItem(USER_KEY, JSON.stringify(data.user));
+    return data;
+  },
+
   getStoredUser(): ApiUser | null {
     const raw = sessionStorage.getItem(USER_KEY);
     if (!raw) return null;

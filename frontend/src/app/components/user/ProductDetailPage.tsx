@@ -7,7 +7,7 @@ import { useAuth, useCart } from '../../store/AppContext';
 import { Button } from '../ui/button';
 import { ImageWithFallback } from '../figma/ImageWithFallback';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
-import { commerceService } from '../../services/commerceService';
+import { commerceService, type MyReview } from '../../services/commerceService';
 
 const formatPrice = (price: number) =>
   new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(price);
@@ -26,6 +26,7 @@ export function ProductDetailPage() {
   const [quantity, setQuantity] = useState(1);
   const [adding, setAdding] = useState(false);
   const [wishlisted, setWishlisted] = useState(false);
+  const [myReview, setMyReview] = useState<MyReview | null>(null);
   const [activeImage, setActiveImage] = useState('');
 
   useEffect(() => {
@@ -36,12 +37,18 @@ export function ProductDetailPage() {
       .then((data) => {
         setProduct(data);
         setSelected({});
+        setMyReview(null);
         setActiveImage(data.image ?? data.images[0] ?? '');
-        if (isAuthenticated) commerceService.wishlistStatus(data.id).then(setWishlisted).catch(() => {});
+        if (isAuthenticated) {
+          commerceService.wishlistStatus(data.id).then(setWishlisted).catch(() => {});
+          commerceService.myReviews()
+            .then((reviews) => setMyReview(reviews.find((review) => review.product?.id === data.id) ?? null))
+            .catch(() => setMyReview(null));
+        }
       })
       .catch(() => setProduct(null))
       .finally(() => setLoading(false));
-  }, [id]);
+  }, [id, isAuthenticated]);
 
   const options = useMemo(() => {
     if (!product) return {};
@@ -295,6 +302,17 @@ export function ProductDetailPage() {
           ))}
         </TabsContent>
         <TabsContent value="reviews" className="mt-4 space-y-3">
+          {isAuthenticated && myReview && (
+            <div className="p-4 border border-orange-200 bg-orange-50 rounded-xl flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+              <div>
+                <p className="font-medium text-orange-800">Bạn đã đánh giá sản phẩm này.</p>
+                <p className="text-sm text-orange-700">Nếu muốn cập nhật nội dung, hãy sửa đánh giá cũ để gửi duyệt lại.</p>
+              </div>
+              <Button onClick={() => navigate('/reviews')} className="bg-orange-600 hover:bg-orange-700">
+                Xem/Sửa đánh giá của bạn
+              </Button>
+            </div>
+          )}
           {product.reviews.length === 0 ? (
             <div className="p-8 border rounded-xl text-center text-muted-foreground">Chưa có đánh giá.</div>
           ) : product.reviews.map((review) => (

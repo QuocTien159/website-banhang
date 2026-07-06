@@ -53,6 +53,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Auth
     Route::post('auth/logout', [AuthController::class, 'logout']);
     Route::get('auth/me',      [AuthController::class, 'me']);
+    Route::put('auth/profile', [AuthController::class, 'updateProfile']);
 
     // Cart
     Route::get   ('cart',                    [CartController::class, 'index']);
@@ -80,6 +81,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Reviews (post requires auth)
     Route::post('reviews', [ReviewController::class, 'store']);
+    Route::put('reviews/{id}', [ReviewController::class, 'update']);
     Route::get('reviews/mine', [ReviewController::class, 'mine']);
     Route::get('reviews/eligible', [ReviewController::class, 'eligible']);
     Route::post('reviews/images', [ReviewController::class, 'uploadImages']);

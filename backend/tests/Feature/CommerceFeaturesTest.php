@@ -10,6 +10,7 @@ use App\Models\MaKhuyenMai;
 use App\Models\SanPham;
 use App\Models\ThongBao;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
@@ -84,5 +85,101 @@ class CommerceFeaturesTest extends TestCase
         ThongBao::create(['tieu_de' => 'Nháp', 'noi_dung' => 'Ẩn', 'loai' => 'general', 'trang_thai' => 'draft', 'ngay_tao' => now()]);
         $this->getJson('/api/announcements')->assertOk()->assertJsonMissing(['title' => 'Nháp']);
         $this->assertGreaterThanOrEqual(1, count($this->getJson('/api/announcements')->json()));
+    }
+    public function test_review_is_unique_per_customer_product_and_can_be_edited(): void
+    {
+        $user = KhachHang::where('email', 'user@example.com')->firstOrFail();
+        $variant = BienTheSanPham::firstOrFail();
+
+        $firstOrder = DonHang::create(['ma_kh' => $user->ma_kh, 'ngay_dat' => now(), 'tong_tien' => 100000, 'phuong_thuc_tt' => 'cod', 'dia_chi_giao' => 'TP HCM', 'trang_thai' => 'delivered']);
+        DB::table('chi_tiet_don_hang')->insert(['ma_dh' => $firstOrder->ma_dh, 'ma_bien_the' => $variant->ma_bt, 'so_luong' => 1, 'don_gia' => 100000]);
+        $secondOrder = DonHang::create(['ma_kh' => $user->ma_kh, 'ngay_dat' => now(), 'tong_tien' => 100000, 'phuong_thuc_tt' => 'cod', 'dia_chi_giao' => 'TP HCM', 'trang_thai' => 'delivered']);
+        DB::table('chi_tiet_don_hang')->insert(['ma_dh' => $secondOrder->ma_dh, 'ma_bien_the' => $variant->ma_bt, 'so_luong' => 1, 'don_gia' => 100000]);
+
+        Sanctum::actingAs($user);
+        $reviewId = $this->postJson('/api/reviews', [
+            'order_id' => $firstOrder->ma_dh,
+            'product_id' => $variant->ma_sp,
+            'rating' => 5,
+            'comment' => 'First review for this product.',
+            'images' => [],
+        ])->assertCreated()->json('review.id');
+
+        $this->postJson('/api/reviews', [
+            'order_id' => $secondOrder->ma_dh,
+            'product_id' => $variant->ma_sp,
+            'rating' => 4,
+            'comment' => 'Repurchase should not create another review.',
+            'images' => [],
+        ])->assertStatus(409);
+
+        $this->getJson('/api/reviews/eligible')
+            ->assertOk()
+            ->assertJsonMissing(['product_id' => $variant->ma_sp]);
+
+        $this->getJson('/api/reviews/mine')
+            ->assertOk()
+            ->assertJsonFragment(['id' => $reviewId]);
+
+        $this->putJson("/api/reviews/{$reviewId}", [
+            'rating' => 3,
+            'comment' => 'Updated review content for approval again.',
+            'images' => [],
+        ])
+            ->assertOk()
+            ->assertJsonPath('review.status', 'pending');
+
+        $this->assertDatabaseHas('danh_gia', [
+            'ma_danh_gia' => $reviewId,
+            'so_sao' => 3,
+            'trang_thai' => 'pending',
+        ]);
+    }
+
+    public function test_other_customer_can_review_same_product_and_cannot_edit_someone_else_review(): void
+    {
+        $owner = KhachHang::where('email', 'user@example.com')->firstOrFail();
+        $other = KhachHang::create([
+            'ten_kh' => 'Other Customer',
+            'email' => 'other-review@example.com',
+            'mat_khau' => Hash::make('user123'),
+            'dien_thoai' => '0988111222',
+            'vai_tro' => false,
+            'role' => 'customer',
+            'trang_thai' => true,
+            'ngay_tao' => now(),
+        ]);
+        $variant = BienTheSanPham::firstOrFail();
+
+        $ownerOrder = DonHang::create(['ma_kh' => $owner->ma_kh, 'ngay_dat' => now(), 'tong_tien' => 100000, 'phuong_thuc_tt' => 'cod', 'dia_chi_giao' => 'TP HCM', 'trang_thai' => 'delivered']);
+        DB::table('chi_tiet_don_hang')->insert(['ma_dh' => $ownerOrder->ma_dh, 'ma_bien_the' => $variant->ma_bt, 'so_luong' => 1, 'don_gia' => 100000]);
+        $otherOrder = DonHang::create(['ma_kh' => $other->ma_kh, 'ngay_dat' => now(), 'tong_tien' => 100000, 'phuong_thuc_tt' => 'cod', 'dia_chi_giao' => 'TP HCM', 'trang_thai' => 'delivered']);
+        DB::table('chi_tiet_don_hang')->insert(['ma_dh' => $otherOrder->ma_dh, 'ma_bien_the' => $variant->ma_bt, 'so_luong' => 1, 'don_gia' => 100000]);
+
+        Sanctum::actingAs($owner);
+        $ownerReviewId = $this->postJson('/api/reviews', [
+            'order_id' => $ownerOrder->ma_dh,
+            'product_id' => $variant->ma_sp,
+            'rating' => 5,
+            'comment' => 'Owner review content.',
+            'images' => [],
+        ])->assertCreated()->json('review.id');
+
+        Sanctum::actingAs($other);
+        $this->postJson('/api/reviews', [
+            'order_id' => $otherOrder->ma_dh,
+            'product_id' => $variant->ma_sp,
+            'rating' => 4,
+            'comment' => 'Other customer can review same product.',
+            'images' => [],
+        ])->assertCreated();
+
+        $this->putJson("/api/reviews/{$ownerReviewId}", [
+            'rating' => 1,
+            'comment' => 'Trying to edit another customer review.',
+            'images' => [],
+        ])->assertForbidden();
+
+        $this->assertSame(2, DanhGia::where('ma_sp', $variant->ma_sp)->count());
     }
 }

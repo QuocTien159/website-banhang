@@ -19,11 +19,12 @@ class DanhGia extends Model
 
     protected $fillable = [
         'ma_danh_gia', 'ma_kh', 'ma_sp', 'ma_dh', 'so_sao', 'noi_dung',
-        'trang_thai', 'phan_hoi_admin', 'ngay_phan_hoi', 'ngay_danh_gia',
+        'trang_thai', 'phan_hoi_admin', 'ngay_phan_hoi', 'ngay_danh_gia', 'ngay_cap_nhat',
     ];
 
     protected $casts = [
         'ngay_danh_gia' => 'datetime',
+        'ngay_cap_nhat' => 'datetime',
         'so_sao' => 'integer',
         'ngay_phan_hoi' => 'datetime',
     ];

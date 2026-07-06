@@ -277,12 +277,26 @@ export function useAuth() {
     dispatch({ type: 'CLEAR_CART' });
   };
 
+  const updateProfile = async (payload: {
+    name: string;
+    phone?: string | null;
+    current_password?: string;
+    new_password?: string;
+    new_password_confirmation?: string;
+  }) => {
+    const { user } = await authService.updateProfile(payload);
+    const mapped = apiUserToUser(user);
+    dispatch({ type: 'SET_USER', payload: mapped });
+    return mapped;
+  };
+
   return {
     user: state.user,
     isAuthenticated: !!state.user,
     isLoading: state.isAuthLoading,
     login,
     register,
+    updateProfile,
     logout,
   };
 }
