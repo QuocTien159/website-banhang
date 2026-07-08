@@ -241,7 +241,7 @@ class PayOsService
         $base = trim((string) $url);
         if ($base === '') {
             $frontendUrl = rtrim((string) config('services.payos.frontend_url'), '/');
-            $base = "{$frontendUrl}/account/orders/{order_id}/qr-payment";
+            $base = "{$frontendUrl}/payment/payos/{result}";
         }
 
         $base = str_replace([
@@ -257,11 +257,8 @@ class PayOsService
         ], $base);
 
         $params = [];
-        if (!str_contains($base, 'orderId=')) {
-            $params[] = 'orderId='.rawurlencode($order->ma_dh);
-        }
-        if (!str_contains($base, 'payosResult=')) {
-            $params[] = 'payosResult='.rawurlencode($result);
+        if (!str_contains($base, 'orderCode=')) {
+            $params[] = 'orderCode='.rawurlencode((string) $orderCode);
         }
 
         if ($params === []) {

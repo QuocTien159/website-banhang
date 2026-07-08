@@ -18,7 +18,7 @@ export interface ApiOrder {
   shipping?: number;
   discount?: number;
   coupon_code?: string | null;
-  payment_method: 'cod' | 'banking' | 'bank_transfer_qr';
+  payment_method: 'cod' | 'banking' | 'bank_transfer_qr' | 'payos';
   payment_provider?: 'payos' | string | null;
   payos_order_code?: number | null;
   payment_link_id?: string | null;
@@ -55,7 +55,7 @@ export interface PlaceOrderPayload {
   district_code?: string;
   ward_code?: string;
   address_detail: string;
-  phuong_thuc_tt: 'cod' | 'banking' | 'bank_transfer_qr';
+  phuong_thuc_tt: 'cod' | 'banking' | 'bank_transfer_qr' | 'payos';
   ghi_chu?: string;
   coupon_code?: string;
 }
@@ -196,6 +196,10 @@ export const orderService = {
   },
   async getOrder(id: string): Promise<ApiOrder> {
     const { data } = await apiClient.get<ApiOrder>(`/orders/${id}`);
+    return data;
+  },
+  async getPayosStatus(orderCode: string): Promise<ApiOrder> {
+    const { data } = await apiClient.get<ApiOrder>(`/payment/payos/status/${orderCode}`);
     return data;
   },
   async placeOrder(payload: PlaceOrderPayload): Promise<{ message: string; order: ApiOrder }> {

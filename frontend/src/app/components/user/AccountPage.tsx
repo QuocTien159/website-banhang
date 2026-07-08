@@ -169,7 +169,7 @@ export function AccountPage() {
 
                     <div className="flex items-center justify-between">
                       <span className="text-xs text-muted-foreground">
-                        {order.items.length} sản phẩm • {order.payment_method === 'cod' ? '💵 COD' : '🏦 Chuyển khoản'}
+                        {order.items.length} sản phẩm • {order.payment_method === 'cod' ? '💵 COD' : order.payment_method === 'payos' ? '🏦 payOS' : '🏦 Chuyển khoản'}
                       </span>
                       <span className="text-sm font-bold" style={{ color: '#ea5c21' }}>
                         {formatPrice(order.total)}

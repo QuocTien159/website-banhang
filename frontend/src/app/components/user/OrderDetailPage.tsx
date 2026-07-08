@@ -304,8 +304,13 @@ export function OrderDetailPage() {
           </div>
           <div className="bg-gray-50 rounded-xl p-4">
             <p className="font-medium mb-2">Thanh toán</p>
-            <p>{order.payment_method === 'cod' ? 'Thanh toán khi nhận hàng' : 'Chuyển khoản QR'}</p>
+            <p>{order.payment_method === 'cod' ? 'Thanh toán khi nhận hàng' : order.payment_method === 'payos' ? 'Thanh toán payOS' : 'Chuyển khoản QR'}</p>
             {order.payment_status && <p className="text-muted-foreground mt-1">Trạng thái: {PAYMENT_STATUS_LABELS[order.payment_status] ?? order.payment_status}</p>}
+            {order.payment_method === 'payos' && order.payment_status !== 'paid' && order.payment_checkout_url && (
+              <Button size="sm" variant="outline" className="mt-3" onClick={() => { window.location.href = order.payment_checkout_url ?? ''; }}>
+                Tiếp tục thanh toán payOS
+              </Button>
+            )}
             {order.payment_method === 'bank_transfer_qr' && order.payment_status !== 'paid' && (
               <Button size="sm" variant="outline" className="mt-3" onClick={() => navigate(`/account/orders/${order.id}/qr-payment`)}>
                 Xem mã QR thanh toán

@@ -67,8 +67,8 @@ class ManualQrPaymentShippingTest extends TestCase
             'services.payos.checksum_key' => 'test-checksum-key',
             'services.payos.base_url' => 'https://api-merchant.payos.vn',
             'services.payos.frontend_url' => 'http://localhost:5173',
-            'services.payos.return_url' => 'http://localhost:5173/account/orders/{order_id}/qr-payment?payosResult=return',
-            'services.payos.cancel_url' => 'http://localhost:5173/account/orders/{order_id}/qr-payment?payosResult=cancel',
+            'services.payos.return_url' => 'http://localhost:5173/payment/payos/return?orderCode={payos_order_code}',
+            'services.payos.cancel_url' => 'http://localhost:5173/payment/payos/cancel?orderCode={payos_order_code}',
         ]);
 
         $payosPayload = null;
@@ -98,10 +98,10 @@ class ManualQrPaymentShippingTest extends TestCase
             'district_code' => '760',
             'ward_code' => '26734',
             'address_detail' => '123 Nguyễn Huệ',
-            'phuong_thuc_tt' => 'bank_transfer_qr',
+            'phuong_thuc_tt' => 'payos',
         ])
             ->assertCreated()
-            ->assertJsonPath('order.payment_method', 'bank_transfer_qr')
+            ->assertJsonPath('order.payment_method', 'payos')
             ->assertJsonPath('order.payment_provider', 'payos')
             ->assertJsonPath('order.payment_status', 'pending_payment')
             ->assertJsonPath('order.payment_link_id', 'payos-link-1')
@@ -112,8 +112,8 @@ class ManualQrPaymentShippingTest extends TestCase
 
         $this->assertSame('https://pay.payos.vn/qr/payos-link-1.png', $order['qr_code_url']);
         $this->assertNotEmpty($order['payos_order_code']);
-        $this->assertSame("http://localhost:5173/account/orders/{$order['id']}/qr-payment?payosResult=return&orderId={$order['id']}", $payosPayload['returnUrl'] ?? null);
-        $this->assertSame("http://localhost:5173/account/orders/{$order['id']}/qr-payment?payosResult=cancel&orderId={$order['id']}", $payosPayload['cancelUrl'] ?? null);
+        $this->assertSame("http://localhost:5173/payment/payos/return?orderCode={$order['payos_order_code']}", $payosPayload['returnUrl'] ?? null);
+        $this->assertSame("http://localhost:5173/payment/payos/cancel?orderCode={$order['payos_order_code']}", $payosPayload['cancelUrl'] ?? null);
 
         $this->putJson("/api/orders/{$order['id']}/bank-transfer-paid")
             ->assertStatus(422);
@@ -163,7 +163,7 @@ class ManualQrPaymentShippingTest extends TestCase
             'ma_kh' => KhachHang::where('email', 'user@example.com')->firstOrFail()->ma_kh,
             'ngay_dat' => now(),
             'tong_tien' => 250000,
-            'phuong_thuc_tt' => 'bank_transfer_qr',
+            'phuong_thuc_tt' => 'payos',
             'payment_provider' => 'payos',
             'payos_order_code' => 123456,
             'payment_link_id' => 'payos-link-wrong-amount',
@@ -203,7 +203,7 @@ class ManualQrPaymentShippingTest extends TestCase
             'ma_kh' => $customer->ma_kh,
             'ngay_dat' => now(),
             'tong_tien' => 3000,
-            'phuong_thuc_tt' => 'bank_transfer_qr',
+            'phuong_thuc_tt' => 'payos',
             'payment_provider' => 'payos',
             'payos_order_code' => 777,
             'payment_link_id' => 'payos-link-paid',
@@ -255,7 +255,7 @@ class ManualQrPaymentShippingTest extends TestCase
             'ma_kh' => $customer->ma_kh,
             'ngay_dat' => now(),
             'tong_tien' => 3000,
-            'phuong_thuc_tt' => 'bank_transfer_qr',
+            'phuong_thuc_tt' => 'payos',
             'payment_provider' => 'payos',
             'payos_order_code' => 778,
             'payment_link_id' => 'payos-link-pending',

@@ -66,6 +66,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Orders
     Route::get ('orders',     [OrderController::class, 'index']);
+    Route::get ('payment/payos/status/{orderCode}', [OrderController::class, 'payosStatus']);
     Route::get ('orders/{id}',[OrderController::class, 'show']);
     Route::post('orders',     [OrderController::class, 'store']);
     Route::put ('orders/{id}/bank-transfer-paid', [OrderController::class, 'markBankTransferPaid']);

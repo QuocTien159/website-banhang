@@ -41,6 +41,19 @@ class OrderController extends Controller
         return response()->json($this->formatOrder($order, true));
     }
 
+    public function payosStatus(Request $request, string $orderCode, PayOsService $payOsService)
+    {
+        $order = DonHang::with(['chiTiets.bienThe.sanPham.anhChinh'])
+            ->where('payos_order_code', (int) $orderCode)
+            ->where('payment_provider', 'payos')
+            ->where('ma_kh', $request->user()->ma_kh)
+            ->firstOrFail();
+
+        $order = $this->syncPayOsOrder($order, $payOsService, ['chiTiets.bienThe.sanPham.anhChinh']);
+
+        return response()->json($this->formatOrder($order));
+    }
+
     public function store(
         Request $request,
         PromotionService $promotionService,
@@ -55,7 +68,7 @@ class OrderController extends Controller
             'district_code' => ['nullable', 'string', 'max:20'],
             'ward_code' => ['nullable', 'string', 'max:20'],
             'address_detail' => ['required', 'string', 'max:255'],
-            'phuong_thuc_tt' => ['required', 'in:cod,banking,bank_transfer_qr'],
+            'phuong_thuc_tt' => ['required', 'in:cod,banking,bank_transfer_qr,payos'],
             'ghi_chu' => ['nullable', 'string', 'max:500'],
             'coupon_code' => ['nullable', 'string', 'max:50'],
         ]);
@@ -138,7 +151,7 @@ class OrderController extends Controller
                 'so_tien_giam' => $discount,
                 'tong_tien' => max(0, $subtotal + $shipping - $discount),
                 'phuong_thuc_tt' => $paymentMethod,
-                'payment_provider' => $paymentMethod === 'bank_transfer_qr' ? 'payos' : null,
+                'payment_provider' => $paymentMethod === 'payos' ? 'payos' : null,
                 'trang_thai_thanh_toan' => $paymentMethod === 'cod' ? PaymentStatus::COD_PENDING : PaymentStatus::PENDING_PAYMENT,
                 'dia_chi_giao' => "{$data['ten_nguoi_nhan']} | {$data['so_dien_thoai']} | {$fullAddress}",
                 'province_type' => $address['province_type'],
@@ -183,6 +196,12 @@ class OrderController extends Controller
             }
 
             if ($paymentMethod === 'bank_transfer_qr') {
+                $order->noi_dung_chuyen_khoan = app(ShippingPaymentService::class)->transferContent($order);
+                $order->qr_code_url = app(ShippingPaymentService::class)->qrUrl($order);
+                $order->save();
+            }
+
+            if ($paymentMethod === 'payos') {
                 $payOsService->createPaymentLink($order);
             }
 

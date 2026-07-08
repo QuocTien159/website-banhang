@@ -131,12 +131,12 @@ class AdminOrderController extends Controller
         ]);
 
         $order = DonHang::findOrFail($id);
-        if ($order->phuong_thuc_tt !== 'bank_transfer_qr') {
-            return response()->json(['message' => 'Đơn hàng này không dùng thanh toán QR chuyển khoản.'], 422);
+        if ($order->payment_provider === 'payos' || $order->phuong_thuc_tt === 'payos') {
+            return response()->json(['message' => 'Thanh toán payOS được xác nhận tự động bằng webhook, không cần duyệt thủ công.'], 422);
         }
 
-        if ($order->payment_provider === 'payos') {
-            return response()->json(['message' => 'Thanh toán payOS được xác nhận tự động bằng webhook, không cần duyệt thủ công.'], 422);
+        if ($order->phuong_thuc_tt !== 'bank_transfer_qr') {
+            return response()->json(['message' => 'Đơn hàng này không dùng thanh toán QR chuyển khoản.'], 422);
         }
 
         $payload = ['trang_thai_thanh_toan' => $data['payment_status']];

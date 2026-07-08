@@ -40,8 +40,8 @@ PAYOS_CLIENT_ID=điền_client_id_thật
 PAYOS_API_KEY=điền_api_key_thật
 PAYOS_CHECKSUM_KEY=điền_checksum_key_thật
 PAYOS_BASE_URL=https://api-merchant.payos.vn
-PAYOS_RETURN_URL=https://ten-mien-cua-toi.com/account/orders/{order_id}/qr-payment?payosResult=return
-PAYOS_CANCEL_URL=https://ten-mien-cua-toi.com/account/orders/{order_id}/qr-payment?payosResult=cancel
+PAYOS_RETURN_URL=https://ten-mien-cua-toi.com/payment/payos/return?orderCode={payos_order_code}
+PAYOS_CANCEL_URL=https://ten-mien-cua-toi.com/payment/payos/cancel?orderCode={payos_order_code}
 PAYOS_CA_BUNDLE=
 ```
 

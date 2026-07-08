@@ -11,6 +11,7 @@ import { RegisterPage } from './components/user/RegisterPage';
 import { AccountPage } from './components/user/AccountPage';
 import { OrderDetailPage } from './components/user/OrderDetailPage';
 import { QrPaymentPage } from './components/user/QrPaymentPage';
+import { PayosCancelPage, PayosReturnPage } from './components/user/PayosCallbackPage';
 import { ProfilePage } from './components/user/ProfilePage';
 import { AdminDashboard } from './components/admin/AdminDashboard';
 import { AdminProducts } from './components/admin/AdminProducts';
@@ -44,6 +45,8 @@ export const router = createBrowserRouter([
       { path: 'account', Component: AccountPage },
       { path: 'account/orders/:id', Component: OrderDetailPage },
       { path: 'account/orders/:id/qr-payment', Component: QrPaymentPage },
+      { path: 'payment/payos/return', Component: PayosReturnPage },
+      { path: 'payment/payos/cancel', Component: PayosCancelPage },
       { path: 'profile', Component: ProfilePage },
       { path: 'wishlist', Component: WishlistPage },
       { path: 'reviews', Component: ReviewsPage },

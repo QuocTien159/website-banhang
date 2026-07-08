@@ -84,6 +84,15 @@ export function QrPaymentPage() {
     return () => window.clearTimeout(timer);
   }, [isPaid, navigate, order]);
 
+  useEffect(() => {
+    if (!order || order.payment_provider !== 'payos') return;
+
+    const target = order.payos_order_code
+      ? `/payment/payos/return?orderCode=${order.payos_order_code}`
+      : `/account/orders/${order.id}`;
+    navigate(target, { replace: true });
+  }, [navigate, order]);
+
   const copy = async (value?: string | null, label = 'thông tin') => {
     if (!value) return;
     await navigator.clipboard.writeText(value);
@@ -97,6 +106,10 @@ export function QrPaymentPage() {
 
   if (authLoading || loading) {
     return <div className="max-w-3xl mx-auto px-4 py-20 text-center">Đang tải thông tin thanh toán...</div>;
+  }
+
+  if (order?.payment_provider === 'payos') {
+    return <div className="max-w-3xl mx-auto px-4 py-20 text-center">Đang chuyển sang trang trạng thái payOS...</div>;
   }
 
   if (!order || order.payment_method !== 'bank_transfer_qr') {

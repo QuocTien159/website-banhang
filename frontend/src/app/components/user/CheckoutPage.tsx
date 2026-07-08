@@ -20,7 +20,7 @@ interface CheckoutForm {
   district_code: string;
   ward_code: string;
   address_detail: string;
-  phuong_thuc_tt: 'cod' | 'bank_transfer_qr';
+  phuong_thuc_tt: 'cod' | 'payos';
   ghi_chu?: string;
 }
 
@@ -165,6 +165,11 @@ export function CheckoutPage() {
       const { order } = await orderService.placeOrder(payload);
       await refreshCart();
       toast.success(`Đặt hàng thành công! Mã đơn: ${order.id}`);
+      if (order.payment_method === 'payos' && order.payment_checkout_url) {
+        window.location.href = order.payment_checkout_url;
+        return;
+      }
+
       navigate(order.payment_method === 'bank_transfer_qr' ? `/account/orders/${order.id}/qr-payment` : '/account', {
         state: { orderPlaced: order.id },
       });
@@ -246,7 +251,7 @@ export function CheckoutPage() {
               <div className="space-y-3">
                 {[
                   { value: 'cod', label: 'Thanh toán khi nhận hàng (COD)', icon: '💵', desc: 'Trả tiền mặt khi nhận được hàng' },
-                  { value: 'bank_transfer_qr', label: 'VietQR qua payOS', icon: '🏦', desc: 'Thanh toán bằng link hoặc mã QR payOS, hệ thống tự xác nhận khi ngân hàng báo thành công' },
+                  { value: 'payos', label: 'Thanh toán payOS', icon: '🏦', desc: 'Chuyển sang trang checkout payOS để thanh toán VietQR an toàn' },
                 ].map((option) => (
                   <label key={option.value} className={`flex items-start gap-3 p-4 rounded-xl border-2 cursor-pointer ${paymentMethod === option.value ? 'border-orange-400 bg-orange-50' : 'border-border hover:border-orange-200'}`}>
                     <input type="radio" value={option.value} {...register('phuong_thuc_tt')} className="mt-0.5" />
@@ -257,9 +262,9 @@ export function CheckoutPage() {
                   </label>
                 ))}
               </div>
-              {paymentMethod === 'bank_transfer_qr' && (
+              {paymentMethod === 'payos' && (
                 <div className="mt-4 p-4 bg-blue-50 rounded-xl border border-blue-200 text-sm text-blue-800">
-                  Sau khi đặt hàng, hệ thống sẽ tạo link thanh toán payOS riêng cho đơn này với đúng số tiền cần thanh toán.
+                  Sau khi đặt hàng, bạn sẽ được chuyển thẳng sang trang thanh toán payOS. Website chỉ cập nhật đã thanh toán khi payOS gửi xác nhận hợp lệ.
                 </div>
               )}
             </section>
