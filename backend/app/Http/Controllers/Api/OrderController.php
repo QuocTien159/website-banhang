@@ -8,6 +8,7 @@ use App\Models\ChiTietGioHang;
 use App\Models\DonHang;
 use App\Models\GioHang;
 use App\Services\InventoryService;
+use App\Services\PayOsService;
 use App\Services\PromotionService;
 use App\Services\ShippingPaymentService;
 use App\Support\OrderStatus;
@@ -17,22 +18,25 @@ use Illuminate\Support\Facades\DB;
 
 class OrderController extends Controller
 {
-    public function index(Request $request)
+    public function index(Request $request, PayOsService $payOsService)
     {
         $orders = DonHang::with(['chiTiets.bienThe.sanPham.anhChinh'])
             ->where('ma_kh', $request->user()->ma_kh)
             ->orderBy('ngay_dat', 'desc')
-            ->get();
+            ->get()
+            ->map(fn (DonHang $order) => $this->syncPayOsOrder($order, $payOsService, ['chiTiets.bienThe.sanPham.anhChinh']));
 
         return response()->json($orders->map(fn ($order) => $this->formatOrder($order)));
     }
 
-    public function show(Request $request, string $id)
+    public function show(Request $request, string $id, PayOsService $payOsService)
     {
         $order = DonHang::with(['chiTiets.bienThe.sanPham.anhChinh', 'chiTiets.bienThe.giaTriThuocTinhs.thuocTinh'])
             ->where('ma_dh', $id)
             ->where('ma_kh', $request->user()->ma_kh)
             ->firstOrFail();
+
+        $order = $this->syncPayOsOrder($order, $payOsService, ['chiTiets.bienThe.sanPham.anhChinh', 'chiTiets.bienThe.giaTriThuocTinhs.thuocTinh']);
 
         return response()->json($this->formatOrder($order, true));
     }
@@ -41,7 +45,8 @@ class OrderController extends Controller
         Request $request,
         PromotionService $promotionService,
         InventoryService $inventoryService,
-        ShippingPaymentService $shippingPaymentService
+        ShippingPaymentService $shippingPaymentService,
+        PayOsService $payOsService
     ) {
         $data = $request->validate([
             'ten_nguoi_nhan' => ['required', 'string', 'max:100'],
@@ -101,7 +106,7 @@ class OrderController extends Controller
             $shippingResult,
             $promotionService,
             $inventoryService,
-            $shippingPaymentService
+            $payOsService
         ) {
             $promotion = null;
             $discount = 0;
@@ -133,6 +138,7 @@ class OrderController extends Controller
                 'so_tien_giam' => $discount,
                 'tong_tien' => max(0, $subtotal + $shipping - $discount),
                 'phuong_thuc_tt' => $paymentMethod,
+                'payment_provider' => $paymentMethod === 'bank_transfer_qr' ? 'payos' : null,
                 'trang_thai_thanh_toan' => $paymentMethod === 'cod' ? PaymentStatus::COD_PENDING : PaymentStatus::PENDING_PAYMENT,
                 'dia_chi_giao' => "{$data['ten_nguoi_nhan']} | {$data['so_dien_thoai']} | {$fullAddress}",
                 'province_type' => $address['province_type'],
@@ -146,12 +152,6 @@ class OrderController extends Controller
                 'trang_thai' => OrderStatus::PENDING,
                 'ghi_chu' => $data['ghi_chu'] ?? null,
             ]);
-
-            if ($paymentMethod === 'bank_transfer_qr') {
-                $order->noi_dung_chuyen_khoan = $shippingPaymentService->transferContent($order);
-                $order->qr_code_url = $shippingPaymentService->qrUrl($order);
-                $order->save();
-            }
 
             foreach ($cart->chiTiets as $item) {
                 ChiTietDonHang::create([
@@ -182,6 +182,10 @@ class OrderController extends Controller
                 $promotion->increment('da_su_dung');
             }
 
+            if ($paymentMethod === 'bank_transfer_qr') {
+                $payOsService->createPaymentLink($order);
+            }
+
             ChiTietGioHang::where('ma_gio_hang', $cart->ma_gio_hang)->delete();
 
             return $order;
@@ -203,6 +207,10 @@ class OrderController extends Controller
 
         if ($order->phuong_thuc_tt !== 'bank_transfer_qr') {
             return response()->json(['message' => 'Đơn hàng này không dùng thanh toán QR chuyển khoản.'], 422);
+        }
+
+        if ($order->payment_provider === 'payos') {
+            return response()->json(['message' => 'Thanh toán payOS sẽ được cập nhật tự động sau khi ngân hàng xác nhận.'], 422);
         }
 
         if (!in_array($order->trang_thai_thanh_toan, [PaymentStatus::PENDING_PAYMENT, PaymentStatus::PAYMENT_NOT_RECEIVED], true)) {
@@ -247,11 +255,16 @@ class OrderController extends Controller
             'coupon_code' => $order->ma_khuyen_mai,
             'discount' => (float) ($order->so_tien_giam ?? 0),
             'payment_method' => $order->phuong_thuc_tt,
+            'payment_provider' => $order->payment_provider,
+            'payos_order_code' => $order->payos_order_code,
+            'payment_link_id' => $order->payment_link_id,
+            'payment_checkout_url' => $order->payment_checkout_url,
             'payment_status' => $order->trang_thai_thanh_toan,
             'bank_transfer_content' => $order->noi_dung_chuyen_khoan,
             'qr_code_url' => $order->qr_code_url,
             'customer_paid_at' => $order->khach_bao_da_chuyen_at?->toISOString(),
             'payment_confirmed_at' => $order->thanh_toan_xac_nhan_at?->toISOString(),
+            'paid_at' => $order->paid_at?->toISOString(),
             'shipping_info' => [
                 'name' => $addressParts[0] ?? '',
                 'phone' => $addressParts[1] ?? '',
@@ -286,5 +299,15 @@ class OrderController extends Controller
         }
 
         return $result;
+    }
+
+    private function syncPayOsOrder(DonHang $order, PayOsService $payOsService, array $relations): DonHang
+    {
+        if ($order->payment_provider === 'payos' && $order->trang_thai_thanh_toan !== PaymentStatus::PAID) {
+            $order = $payOsService->syncPaymentStatus($order);
+            $order->load($relations);
+        }
+
+        return $order;
     }
 }

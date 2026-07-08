@@ -22,6 +22,9 @@ export const PAYMENT_STATUS_LABELS: Record<string, string> = {
   waiting_admin_confirmation: 'Chờ admin xác nhận',
   paid: 'Đã thanh toán',
   payment_not_received: 'Chưa nhận được tiền',
+  failed: 'Thanh toán thất bại',
+  cancelled: 'Đã hủy thanh toán',
+  expired: 'Thanh toán hết hạn',
 };
 
 export const USER_ROLES = {

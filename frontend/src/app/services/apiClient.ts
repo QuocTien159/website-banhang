@@ -4,6 +4,18 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000/api
 const TOKEN_KEY = 'auth_token';
 const USER_KEY = 'auth_user';
 
+const getStoredToken = () => {
+  const localToken = localStorage.getItem(TOKEN_KEY);
+  if (localToken) return localToken;
+
+  const sessionToken = sessionStorage.getItem(TOKEN_KEY);
+  if (sessionToken) {
+    localStorage.setItem(TOKEN_KEY, sessionToken);
+  }
+
+  return sessionToken;
+};
+
 const clearStoredAuth = () => {
   sessionStorage.removeItem(TOKEN_KEY);
   sessionStorage.removeItem(USER_KEY);
@@ -18,7 +30,7 @@ const apiClient = axios.create({
 });
 
 apiClient.interceptors.request.use((config) => {
-  const token = sessionStorage.getItem(TOKEN_KEY);
+  const token = getStoredToken();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }

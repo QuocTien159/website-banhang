@@ -246,7 +246,7 @@ export function CheckoutPage() {
               <div className="space-y-3">
                 {[
                   { value: 'cod', label: 'Thanh toán khi nhận hàng (COD)', icon: '💵', desc: 'Trả tiền mặt khi nhận được hàng' },
-                  { value: 'bank_transfer_qr', label: 'Chuyển khoản QR', icon: '🏦', desc: 'Quét mã QR, chuyển đúng số tiền và nội dung đơn hàng' },
+                  { value: 'bank_transfer_qr', label: 'VietQR qua payOS', icon: '🏦', desc: 'Thanh toán bằng link hoặc mã QR payOS, hệ thống tự xác nhận khi ngân hàng báo thành công' },
                 ].map((option) => (
                   <label key={option.value} className={`flex items-start gap-3 p-4 rounded-xl border-2 cursor-pointer ${paymentMethod === option.value ? 'border-orange-400 bg-orange-50' : 'border-border hover:border-orange-200'}`}>
                     <input type="radio" value={option.value} {...register('phuong_thuc_tt')} className="mt-0.5" />
@@ -259,7 +259,7 @@ export function CheckoutPage() {
               </div>
               {paymentMethod === 'bank_transfer_qr' && (
                 <div className="mt-4 p-4 bg-blue-50 rounded-xl border border-blue-200 text-sm text-blue-800">
-                  Sau khi đặt hàng, hệ thống sẽ tạo mã QR riêng cho đơn này với đúng số tiền và nội dung chuyển khoản.
+                  Sau khi đặt hàng, hệ thống sẽ tạo link thanh toán payOS riêng cho đơn này với đúng số tiền cần thanh toán.
                 </div>
               )}
             </section>

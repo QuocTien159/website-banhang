@@ -19,11 +19,16 @@ export interface ApiOrder {
   discount?: number;
   coupon_code?: string | null;
   payment_method: 'cod' | 'banking' | 'bank_transfer_qr';
-  payment_status?: 'cod_pending' | 'pending_payment' | 'waiting_admin_confirmation' | 'paid' | 'payment_not_received';
+  payment_provider?: 'payos' | string | null;
+  payos_order_code?: number | null;
+  payment_link_id?: string | null;
+  payment_checkout_url?: string | null;
+  payment_status?: 'cod_pending' | 'pending_payment' | 'waiting_admin_confirmation' | 'paid' | 'payment_not_received' | 'failed' | 'cancelled' | 'expired';
   bank_transfer_content?: string | null;
   qr_code_url?: string | null;
   customer_paid_at?: string | null;
   payment_confirmed_at?: string | null;
+  paid_at?: string | null;
   shipping_area_type?: string | null;
   bank?: BankInfo;
   shipping_info: {

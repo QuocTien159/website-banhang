@@ -9,4 +9,7 @@ final class PaymentStatus
     public const WAITING_ADMIN_CONFIRMATION = 'waiting_admin_confirmation';
     public const PAID = 'paid';
     public const PAYMENT_NOT_RECEIVED = 'payment_not_received';
+    public const FAILED = 'failed';
+    public const CANCELLED = 'cancelled';
+    public const EXPIRED = 'expired';
 }

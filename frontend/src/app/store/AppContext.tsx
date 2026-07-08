@@ -140,9 +140,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     let active = true;
 
     const bootstrapAuth = async () => {
-      localStorage.removeItem('auth_token');
-      localStorage.removeItem('auth_user');
-
       if (!authService.isAuthenticated()) {
         if (active) {
           dispatch({ type: 'SET_USER', payload: null });

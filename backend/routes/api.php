@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\CategoryController;
 use App\Http\Controllers\Api\CartController;
 use App\Http\Controllers\Api\OrderController;
+use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\ReviewController;
 use App\Http\Controllers\Api\WishlistController;
 use App\Http\Controllers\Api\Admin\AdminProductController;
@@ -43,6 +44,7 @@ Route::get('products/{id}',        [ProductController::class, 'show']);
 Route::get('products/{id}/reviews',[ReviewController::class, 'index']);
 Route::get('categories',           [CategoryController::class, 'index']);
 Route::get('announcements',        [AnnouncementController::class, 'index']);
+Route::post('payment/payos-webhook', [PaymentController::class, 'payosWebhook']);
 
 /*
 |----------------------------------------------------------------------

@@ -24,6 +24,9 @@ const PAYMENT_STATUS_LABELS: Record<string, string> = {
   waiting_admin_confirmation: 'Chờ admin xác nhận',
   paid: 'Đã thanh toán',
   payment_not_received: 'Chưa nhận được tiền',
+  failed: 'Thanh toán thất bại',
+  cancelled: 'Đã hủy thanh toán',
+  expired: 'Thanh toán hết hạn',
 };
 
 const STATUS_FLOW = ['pending', 'confirmed', 'shipping', 'delivered'];
@@ -37,6 +40,7 @@ interface AdminOrder {
   status: string;
   total: number;
   paymentMethod: string;
+  paymentProvider?: string | null;
   paymentStatus: string;
   bankTransferContent?: string;
   customerPaidAt?: string | null;
@@ -85,6 +89,7 @@ const normalizeOrder = (raw: RawAdminOrder): AdminOrder => {
     status: raw.status ?? raw.trang_thai ?? 'pending',
     total: Number(raw.total ?? raw.tong_tien ?? 0),
     paymentMethod: raw.payment_method ?? raw.payment ?? raw.phuong_thuc_tt ?? '',
+    paymentProvider: raw.payment_provider ?? null,
     paymentStatus: raw.payment_status ?? raw.trang_thai_thanh_toan ?? '',
     bankTransferContent: raw.bank_transfer_content ?? raw.noi_dung_chuyen_khoan ?? '',
     customerPaidAt: raw.customer_paid_at ?? raw.khach_bao_da_chuyen_at ?? null,
@@ -197,6 +202,8 @@ export function AdminOrders() {
               const nextStatus = getNextStatus(order.status);
               const productCount = Number.isFinite(order.productCount) ? order.productCount : 0;
               const isQrOrder = order.paymentMethod === 'bank_transfer_qr' || order.paymentMethod === 'banking';
+              const isPayosOrder = order.paymentProvider === 'payos';
+              const isPayosWaitingPayment = isPayosOrder && order.paymentStatus !== 'paid';
 
               return (
                 <div key={order.id} className="p-4 hover:bg-gray-50 transition-colors">
@@ -208,7 +215,7 @@ export function AdminOrders() {
                           {SHARED_ORDER_STATUS_LABELS[order.status] ?? order.status}
                         </span>
                         <span className="text-xs text-muted-foreground">
-                          {order.paymentMethod === 'cod' ? 'COD' : isQrOrder ? 'QR chuyển khoản' : 'Không xác định'}
+                          {order.paymentMethod === 'cod' ? 'COD' : isPayosOrder ? 'payOS' : isQrOrder ? 'QR chuyển khoản' : 'Không xác định'}
                         </span>
                         {order.paymentStatus && (
                           <span className="text-xs px-2 py-0.5 rounded-full bg-blue-50 text-blue-700">
@@ -236,7 +243,12 @@ export function AdminOrders() {
                     </div>
                     <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
                       <span className="text-sm font-bold" style={{ color: '#ea5c21' }}>{formatCurrency(order.total)}</span>
-                      {nextStatus && order.status !== 'cancelled' && (
+                      {isPayosWaitingPayment && (
+                        <span className="text-xs px-3 py-1.5 rounded-lg border border-blue-100 bg-blue-50 text-blue-700">
+                          Chờ payOS xác nhận
+                        </span>
+                      )}
+                      {!isPayosWaitingPayment && nextStatus && order.status !== 'cancelled' && (
                         <button
                           onClick={() => handleStatusUpdate(order.id, nextStatus)}
                           disabled={updating === order.id}
@@ -255,7 +267,7 @@ export function AdminOrders() {
                           Hủy
                         </button>
                       )}
-                      {isQrOrder && order.paymentStatus === 'waiting_admin_confirmation' && (
+                      {isQrOrder && !isPayosOrder && order.paymentStatus === 'waiting_admin_confirmation' && (
                         <>
                           <button
                             onClick={() => handlePaymentUpdate(order.id, 'paid')}

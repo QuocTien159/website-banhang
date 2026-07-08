@@ -18,6 +18,18 @@ interface AuthResponse {
 const TOKEN_KEY = 'auth_token';
 const USER_KEY = 'auth_user';
 
+const readStorage = (key: string) => {
+  const localValue = localStorage.getItem(key);
+  if (localValue) return localValue;
+
+  const sessionValue = sessionStorage.getItem(key);
+  if (sessionValue) {
+    localStorage.setItem(key, sessionValue);
+  }
+
+  return sessionValue;
+};
+
 export const authService = {
   clearAuth(): void {
     sessionStorage.removeItem(TOKEN_KEY);
@@ -32,8 +44,8 @@ export const authService = {
       mat_khau,
     });
     this.clearAuth();
-    sessionStorage.setItem(TOKEN_KEY, data.token);
-    sessionStorage.setItem(USER_KEY, JSON.stringify(data.user));
+    localStorage.setItem(TOKEN_KEY, data.token);
+    localStorage.setItem(USER_KEY, JSON.stringify(data.user));
     return data;
   },
 
@@ -46,8 +58,8 @@ export const authService = {
   }): Promise<AuthResponse> {
     const { data } = await apiClient.post<AuthResponse>('/auth/register', payload);
     this.clearAuth();
-    sessionStorage.setItem(TOKEN_KEY, data.token);
-    sessionStorage.setItem(USER_KEY, JSON.stringify(data.user));
+    localStorage.setItem(TOKEN_KEY, data.token);
+    localStorage.setItem(USER_KEY, JSON.stringify(data.user));
     return data;
   },
 
@@ -63,7 +75,7 @@ export const authService = {
 
   async me(): Promise<ApiUser> {
     const { data } = await apiClient.get<{ user: ApiUser }>('/auth/me');
-    sessionStorage.setItem(USER_KEY, JSON.stringify(data.user));
+    localStorage.setItem(USER_KEY, JSON.stringify(data.user));
     return data.user;
   },
 
@@ -75,12 +87,12 @@ export const authService = {
     new_password_confirmation?: string;
   }): Promise<{ message: string; user: ApiUser }> {
     const { data } = await apiClient.put<{ message: string; user: ApiUser }>('/auth/profile', payload);
-    sessionStorage.setItem(USER_KEY, JSON.stringify(data.user));
+    localStorage.setItem(USER_KEY, JSON.stringify(data.user));
     return data;
   },
 
   getStoredUser(): ApiUser | null {
-    const raw = sessionStorage.getItem(USER_KEY);
+    const raw = readStorage(USER_KEY);
     if (!raw) return null;
     try {
       return JSON.parse(raw) as ApiUser;
@@ -91,10 +103,10 @@ export const authService = {
   },
 
   isAuthenticated(): boolean {
-    return !!sessionStorage.getItem(TOKEN_KEY);
+    return !!readStorage(TOKEN_KEY);
   },
 
   getToken(): string | null {
-    return sessionStorage.getItem(TOKEN_KEY);
+    return readStorage(TOKEN_KEY);
   },
 };

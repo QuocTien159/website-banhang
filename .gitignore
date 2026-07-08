@@ -9,6 +9,7 @@ frontend/.env.local
 backend/vendor/
 backend/node_modules/
 backend/.env
+backend/storage/certs/
 backend/storage/logs/*.log
 backend/storage/framework/cache/data/
 backend/storage/framework/sessions/

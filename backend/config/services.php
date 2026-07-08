@@ -35,4 +35,15 @@ return [
         ],
     ],
 
+    'payos' => [
+        'client_id' => env('PAYOS_CLIENT_ID'),
+        'api_key' => env('PAYOS_API_KEY'),
+        'checksum_key' => env('PAYOS_CHECKSUM_KEY'),
+        'base_url' => env('PAYOS_BASE_URL', 'https://api-merchant.payos.vn'),
+        'frontend_url' => env('FRONTEND_URL', 'http://localhost:5173'),
+        'return_url' => env('PAYOS_RETURN_URL'),
+        'cancel_url' => env('PAYOS_CANCEL_URL'),
+        'ca_bundle' => env('PAYOS_CA_BUNDLE'),
+    ],
+
 ];

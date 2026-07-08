@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\DonHang;
 use App\Models\LichSuXuLyDonHang;
 use App\Services\InventoryService;
+use App\Services\PayOsService;
 use App\Support\OrderStatus;
 use App\Support\PaymentStatus;
 use Illuminate\Http\Request;
@@ -13,7 +14,7 @@ use Illuminate\Support\Facades\DB;
 
 class AdminOrderController extends Controller
 {
-    public function index(Request $request)
+    public function index(Request $request, PayOsService $payOsService)
     {
         $query = DonHang::with(['khachHang', 'chiTiets', 'xuLyGanNhat.nguoiXuLy']);
 
@@ -30,6 +31,14 @@ class AdminOrderController extends Controller
         }
 
         $orders = $query->orderBy('ngay_dat', 'desc')->paginate(20);
+        $orders->getCollection()->transform(function (DonHang $order) use ($payOsService) {
+            if ($order->payment_provider === 'payos' && $order->trang_thai_thanh_toan !== PaymentStatus::PAID) {
+                $order = $payOsService->syncPaymentStatus($order);
+                $order->load(['khachHang', 'chiTiets', 'xuLyGanNhat.nguoiXuLy']);
+            }
+
+            return $order;
+        });
 
         return response()->json([
             'data' => $orders->getCollection()->map(function (DonHang $order) {
@@ -49,6 +58,7 @@ class AdminOrderController extends Controller
                     'status' => $order->trang_thai,
                     'payment' => $order->phuong_thuc_tt,
                     'payment_method' => $order->phuong_thuc_tt,
+                    'payment_provider' => $order->payment_provider,
                     'payment_status' => $order->trang_thai_thanh_toan,
                     'bank_transfer_content' => $order->noi_dung_chuyen_khoan,
                     'customer_paid_at' => $order->khach_bao_da_chuyen_at?->toISOString(),
@@ -81,6 +91,13 @@ class AdminOrderController extends Controller
 
         $order = DonHang::findOrFail($id);
         $oldStatus = $order->trang_thai;
+
+        if ($order->payment_provider === 'payos'
+            && $order->trang_thai_thanh_toan !== PaymentStatus::PAID
+            && $data['status'] !== OrderStatus::CANCELLED
+        ) {
+            return response()->json(['message' => 'Đơn payOS chưa được xác nhận thanh toán, không thể chuyển trạng thái xử lý.'], 422);
+        }
 
         if ($data['status'] === OrderStatus::CANCELLED && $oldStatus !== OrderStatus::CANCELLED) {
             DB::transaction(function () use ($order, $oldStatus, $data, $request, $inventoryService) {
@@ -116,6 +133,10 @@ class AdminOrderController extends Controller
         $order = DonHang::findOrFail($id);
         if ($order->phuong_thuc_tt !== 'bank_transfer_qr') {
             return response()->json(['message' => 'Đơn hàng này không dùng thanh toán QR chuyển khoản.'], 422);
+        }
+
+        if ($order->payment_provider === 'payos') {
+            return response()->json(['message' => 'Thanh toán payOS được xác nhận tự động bằng webhook, không cần duyệt thủ công.'], 422);
         }
 
         $payload = ['trang_thai_thanh_toan' => $data['payment_status']];

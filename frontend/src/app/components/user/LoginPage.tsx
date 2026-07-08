@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router';
 import { Eye, EyeOff, ArrowLeft } from 'lucide-react';
 import { useAuth } from '../../store/AppContext';
+import { authService } from '../../services/authService';
 import { Button } from '../ui/button';
 import { toast } from 'sonner';
 
@@ -26,8 +27,7 @@ export function LoginPage() {
       if (success) {
         toast.success('Đăng nhập thành công!');
         // Re-fetch user to determine role
-        const storedRaw = sessionStorage.getItem('auth_user');
-        const storedUser = storedRaw ? JSON.parse(storedRaw) : null;
+        const storedUser = authService.getStoredUser();
         navigate(['admin', 'staff'].includes(storedUser?.role) ? '/admin' : from, { replace: true });
       } else {
         setError('Email hoặc mật khẩu không đúng.');
