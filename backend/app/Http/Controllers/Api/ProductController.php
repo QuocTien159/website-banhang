@@ -14,6 +14,7 @@ class ProductController extends Controller
             'danhMuc',
             'anhChinh',
             'bienThes.giaTriThuocTinhs.thuocTinh',
+            'bienThes.hinhAnhs',
         ])
             ->where('trang_thai', 'active');
 
@@ -176,6 +177,7 @@ class ProductController extends Controller
                 'sku'        => $bt->sku,
                 'price'      => (float)$bt->gia_ban,
                 'stock'      => $bt->so_luong_ton,
+                'image'      => $bt->hinhAnhs->first()?->url,
                 'attributes' => $bt->giaTriThuocTinhs->map(fn($gt) => [
                     'name'  => $gt->thuocTinh->ten_tt,
                     'value' => $gt->gia_tri,

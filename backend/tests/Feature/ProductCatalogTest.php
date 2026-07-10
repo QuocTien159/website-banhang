@@ -16,17 +16,17 @@ class ProductCatalogTest extends TestCase
         $this->getJson('/api/categories')
             ->assertOk()
             ->assertJsonCount(4)
-            ->assertJsonFragment(['name' => 'Áo', 'count' => 3])
-            ->assertJsonFragment(['name' => 'Quần', 'count' => 3])
-            ->assertJsonFragment(['name' => 'Giày', 'count' => 3])
-            ->assertJsonFragment(['name' => 'Phụ kiện', 'count' => 3]);
+            ->assertJsonFragment(['name' => 'Áo', 'count' => 5])
+            ->assertJsonFragment(['name' => 'Quần', 'count' => 5])
+            ->assertJsonFragment(['name' => 'Giày', 'count' => 5])
+            ->assertJsonFragment(['name' => 'Phụ kiện', 'count' => 5]);
 
         $response = $this->getJson('/api/products?category=Giày&brand=Nike');
 
         $response
             ->assertOk()
-            ->assertJsonPath('meta.total', 1)
-            ->assertJsonPath('data.0.name', 'Giày Chạy Bộ Nike Revolution')
+            ->assertJsonPath('meta.total', 2)
+            ->assertJsonPath('data.0.name', 'Giày Bóng Rổ Nike Precision 7')
             ->assertJsonPath('data.0.brand', 'Nike')
             ->assertJsonStructure([
                 'meta' => ['filters' => ['Thương hiệu', 'Màu sắc', 'Kích thước', 'Khối lượng', 'Độ đàn hồi']],
@@ -54,11 +54,13 @@ class ProductCatalogTest extends TestCase
     {
         $response = $this->getJson('/api/products?brand=Khác&per_page=20');
 
-        $response->assertOk()->assertJsonPath('meta.total', 3);
+        $response->assertOk()->assertJsonPath('meta.total', 5);
 
         $brands = collect($response->json('data'))->pluck('brand');
         $this->assertTrue($brands->contains('Vifa Sport'));
         $this->assertTrue($brands->contains('GoodFit'));
+        $this->assertTrue($brands->contains('Under Armour'));
+        $this->assertTrue($brands->contains('Reebok'));
         $this->assertFalse($brands->contains('Nike'));
         $this->assertFalse($brands->contains('Adidas'));
         $this->assertFalse($brands->contains('Puma'));

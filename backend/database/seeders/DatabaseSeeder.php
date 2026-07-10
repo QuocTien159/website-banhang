@@ -82,6 +82,7 @@ class DatabaseSeeder extends Seeder
         }
 
         $this->call(CommerceFeatureSeeder::class);
+        $this->call(SportsCatalogSeeder::class);
 
         $this->command?->info('Đã tạo 4 danh mục và '.count($this->products()).' sản phẩm thể thao.');
         $this->command?->info('Admin: admin@tienprosport.vn / admin123');

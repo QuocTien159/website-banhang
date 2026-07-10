@@ -76,6 +76,10 @@ export function ProductDetailPage() {
     );
   }, [product, selected, selectionComplete]);
 
+  useEffect(() => {
+    if (selectedVariant?.image) setActiveImage(selectedVariant.image);
+  }, [selectedVariant?.id, selectedVariant?.image]);
+
   const optionAvailable = (attributeName: string, value: string) => {
     if (!product) return false;
     const candidateSelection = { ...selected, [attributeName]: value };

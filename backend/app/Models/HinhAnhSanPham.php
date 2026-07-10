@@ -17,12 +17,17 @@ class HinhAnhSanPham extends Model
 
     public static string $idPrefix = 'AN';
 
-    protected $fillable = ['ma_anh', 'ma_sp', 'url', 'anh_chinh'];
+    protected $fillable = ['ma_anh', 'ma_sp', 'ma_bt', 'url', 'anh_chinh'];
 
     protected $casts = ['anh_chinh' => 'boolean'];
 
     public function sanPham()
     {
         return $this->belongsTo(SanPham::class, 'ma_sp', 'ma_sp');
+    }
+
+    public function bienThe()
+    {
+        return $this->belongsTo(BienTheSanPham::class, 'ma_bt', 'ma_bt');
     }
 }

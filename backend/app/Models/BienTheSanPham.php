@@ -72,4 +72,9 @@ class BienTheSanPham extends Model
     {
         return $this->hasMany(LichSuBienDongKho::class, 'ma_bien_the', 'ma_bt');
     }
+
+    public function hinhAnhs()
+    {
+        return $this->hasMany(HinhAnhSanPham::class, 'ma_bt', 'ma_bt');
+    }
 }

@@ -36,6 +36,7 @@ export interface ApiVariant {
   sku: string;
   price: number;
   stock: number;
+  image?: string | null;
   attributes: { name: string; value: string }[];
 }
 
