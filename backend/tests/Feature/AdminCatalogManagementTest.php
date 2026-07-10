@@ -56,7 +56,14 @@ class AdminCatalogManagementTest extends TestCase
 
     public function test_admin_can_create_and_update_product_images_and_variants(): void
     {
+        Storage::fake('public');
         $category = DanhMuc::where('ten_dm', 'Áo')->firstOrFail();
+        $uploads = $this->post('/api/admin/products/images', [
+            'images' => [
+                UploadedFile::fake()->image('front.jpg', 900, 900)->size(500),
+                UploadedFile::fake()->image('back.jpg', 900, 900)->size(500),
+            ],
+        ])->assertCreated()->json('images');
         $payload = [
             'name' => 'Áo Test Admin',
             'category_id' => $category->ma_dm,
@@ -64,8 +71,8 @@ class AdminCatalogManagementTest extends TestCase
             'base_price' => 500000,
             'status' => 'active',
             'images' => [
-                ['url' => 'https://example.com/front.jpg', 'is_primary' => true],
-                ['url' => 'https://example.com/back.jpg', 'is_primary' => false],
+                $uploads[0] + ['is_primary' => true],
+                $uploads[1] + ['is_primary' => false],
             ],
             'variants' => [
                 [

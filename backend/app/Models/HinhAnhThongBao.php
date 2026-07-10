@@ -16,7 +16,7 @@ class HinhAnhThongBao extends Model
     public $timestamps = false;
     public static string $idPrefix = 'AT';
 
-    protected $fillable = ['ma_anh_tb', 'ma_tb', 'url', 'duong_dan', 'thu_tu', 'ngay_tao'];
+    protected $fillable = ['ma_anh_tb', 'ma_tb', 'url', 'duong_dan', 'provider', 'cloudinary_public_id', 'chieu_rong', 'chieu_cao', 'thu_tu', 'ngay_tao'];
     protected $casts = ['thu_tu' => 'integer', 'ngay_tao' => 'datetime'];
 
     public function thongBao()

@@ -54,4 +54,12 @@ return [
         'verify_ssl' => env('GHN_VERIFY_SSL', true),
     ],
 
+    'cloudinary' => [
+        'cloud_name' => env('CLOUDINARY_CLOUD_NAME'),
+        'api_key' => env('CLOUDINARY_API_KEY'),
+        'api_secret' => env('CLOUDINARY_API_SECRET'),
+        'upload_preset' => env('CLOUDINARY_UPLOAD_PRESET'),
+        'ca_bundle' => env('CLOUDINARY_CA_BUNDLE') ?: storage_path('certs/cacert.pem'),
+    ],
+
 ];

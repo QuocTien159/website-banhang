@@ -17,9 +17,9 @@ class HinhAnhSanPham extends Model
 
     public static string $idPrefix = 'AN';
 
-    protected $fillable = ['ma_anh', 'ma_sp', 'ma_bt', 'url', 'anh_chinh'];
+    protected $fillable = ['ma_anh', 'ma_sp', 'ma_bt', 'url', 'provider', 'cloudinary_public_id', 'chieu_rong', 'chieu_cao', 'anh_chinh', 'thu_tu'];
 
-    protected $casts = ['anh_chinh' => 'boolean'];
+    protected $casts = ['anh_chinh' => 'boolean', 'thu_tu' => 'integer'];
 
     public function sanPham()
     {

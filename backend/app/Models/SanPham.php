@@ -40,7 +40,7 @@ class SanPham extends Model
 
     public function hinhAnhs()
     {
-        return $this->hasMany(HinhAnhSanPham::class, 'ma_sp', 'ma_sp');
+        return $this->hasMany(HinhAnhSanPham::class, 'ma_sp', 'ma_sp')->orderBy('thu_tu');
     }
 
     public function anhChinh()

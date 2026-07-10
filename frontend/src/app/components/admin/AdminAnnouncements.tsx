@@ -9,6 +9,7 @@ interface AnnouncementImage {
   id?: string;
   url: string;
   path?: string;
+  upload_token?: string | null;
 }
 
 interface AnnouncementForm {
@@ -143,8 +144,8 @@ export function AdminAnnouncements() {
                     <button onClick={() => moveImage(index, -1)} disabled={index === 0} className="p-1 disabled:opacity-30"><ArrowUp className="w-4 h-4" /></button>
                     <button onClick={() => moveImage(index, 1)} disabled={index === form.images.length - 1} className="p-1 disabled:opacity-30"><ArrowDown className="w-4 h-4" /></button>
                     <button onClick={async () => {
-                      if (!image.id && image.path) {
-                        try { await adminCommerceService.announcements.deleteUploadedImage(image.path); }
+                      if (!image.id && (image.path || image.upload_token)) {
+                        try { await adminCommerceService.announcements.deleteUploadedImage({ path: image.path, upload_token: image.upload_token }); }
                         catch { toast.error('Không thể xóa tệp ảnh vừa tải.'); return; }
                       }
                       setForm({ ...form, images: form.images.filter((_, i) => i !== index) });
@@ -155,7 +156,7 @@ export function AdminAnnouncements() {
             ))}
           </div>
         </div>
-        <Button onClick={save} disabled={saving || !form.title.trim() || !form.content.trim()} className="bg-orange-600 hover:bg-orange-700">
+        <Button onClick={save} disabled={saving || uploading || !form.title.trim() || !form.content.trim()} className="bg-orange-600 hover:bg-orange-700">
           {saving && <Loader2 className="w-4 h-4 animate-spin mr-2" />}{editing ? 'Lưu thay đổi' : 'Tạo thông báo'}
         </Button>
       </section>

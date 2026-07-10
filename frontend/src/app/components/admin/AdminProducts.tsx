@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Edit2, EyeOff, ImagePlus, Loader2, Plus, Search, Trash2, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Edit2, EyeOff, ImagePlus, Loader2, Plus, Search, Trash2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   adminService,
@@ -138,6 +138,14 @@ export function AdminProducts() {
     }));
   };
 
+  const moveImage = (index: number, direction: -1 | 1) => {
+    const target = index + direction;
+    if (target < 0 || target >= form.images.length) return;
+    const images = [...form.images];
+    [images[index], images[target]] = [images[target], images[index]];
+    setForm({ ...form, images });
+  };
+
   const generateVariants = () => {
     const groups = generatorAttributes
       .map((name) => ({ name, values: selectedValues[name] ?? [] }))
@@ -159,6 +167,10 @@ export function AdminProducts() {
   };
 
   const save = async () => {
+    if (uploading) {
+      toast.error('Đợi ảnh tải xong trước khi lưu sản phẩm.');
+      return;
+    }
     setSaving(true);
     setFieldErrors({});
     try {
@@ -294,7 +306,17 @@ export function AdminProducts() {
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   {form.images.map((image, index) => <div key={image.id ?? image.url} className={`relative border-2 rounded-xl overflow-hidden ${image.is_primary ? 'border-orange-500' : 'border-transparent'}`}>
                     <ImageWithFallback src={image.url} alt="" className="w-full aspect-square object-cover" />
+                    <select value={image.variant_id ?? image.variant_sku ?? ''} onChange={(event) => {
+                      const value = event.target.value;
+                      const selectedVariant = form.variants.find((variant) => variant.id === value);
+                      setForm({ ...form, images: form.images.map((item, itemIndex) => itemIndex === index ? { ...item, variant_id: selectedVariant ? (value || null) : undefined, variant_sku: selectedVariant ? undefined : value } : item) });
+                    }} className="absolute inset-x-2 top-2 h-7 rounded bg-white/95 px-1 text-xs">
+                      <option value="">Ảnh chung</option>
+                      {form.variants.filter((variant) => variant.id || variant.sku).map((variant) => <option key={variant.id ?? variant.sku} value={variant.id ?? variant.sku}>{variant.sku || 'SKU chưa đặt'}</option>)}
+                    </select>
                     <div className="absolute inset-x-0 bottom-0 p-2 bg-black/60 flex gap-2">
+                      <button onClick={() => moveImage(index, -1)} disabled={index === 0} className="text-white disabled:opacity-30" title="Đưa ảnh sang trái"><ArrowLeft className="w-4 h-4" /></button>
+                      <button onClick={() => moveImage(index, 1)} disabled={index === form.images.length - 1} className="text-white disabled:opacity-30" title="Đưa ảnh sang phải"><ArrowRight className="w-4 h-4" /></button>
                       <button onClick={() => setForm({ ...form, images: form.images.map((item, i) => ({ ...item, is_primary: i === index })) })} className="flex-1 text-xs text-white">{image.is_primary ? 'Ảnh đại diện' : 'Đặt đại diện'}</button>
                       <button onClick={() => {
                         const remaining = form.images.filter((_, i) => i !== index);

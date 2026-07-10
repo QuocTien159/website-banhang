@@ -86,9 +86,9 @@ export const adminCommerceService = {
       files.forEach((file) => form.append('images[]', file));
       return (await apiClient.post('/admin/announcements/images', form, {
         headers: { 'Content-Type': 'multipart/form-data' },
-      })).data.images as { url: string; path: string }[];
+      })).data.images as { url: string; path?: string; upload_token?: string | null }[];
     },
-    deleteUploadedImage: (path: string) => apiClient.delete('/admin/announcements/images/uploaded', { data: { path } }),
+    deleteUploadedImage: (data: { path?: string; upload_token?: string | null }) => apiClient.delete('/admin/announcements/images/uploaded', { data }),
   },
   returns: {
     list: (params = {}) => apiClient.get('/admin/returns', { params }).then((r) => r.data),

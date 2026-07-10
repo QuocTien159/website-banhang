@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\SanPham;
+use App\Services\CloudinaryMediaService;
 use Illuminate\Http\Request;
 
 class ProductController extends Controller
@@ -136,7 +137,7 @@ class ProductController extends Controller
             'category_id'  => $p->ma_dm,
             'price'        => (float)($minVariantPrice ?? $p->gia_co_ban),
             'original_price' => (float)$p->gia_co_ban,
-            'image'        => $p->anhChinh?->url,
+            'image'        => app(CloudinaryMediaService::class)->url($p->anhChinh?->url, $p->anhChinh?->provider, 'list'),
             'stock'        => $totalStock,
             'rating'       => round($avgRating ?? 0, 1),
             'review_count' => $reviewCount,
@@ -160,8 +161,8 @@ class ProductController extends Controller
             'category_id'  => $p->ma_dm,
             'price'        => (float)($p->bienThes->where('trang_thai', true)->min('gia_ban') ?? $p->gia_co_ban),
             'original_price' => (float)$p->gia_co_ban,
-            'image'        => $p->hinhAnhs->where('anh_chinh', true)->first()?->url,
-            'images'       => $p->hinhAnhs->pluck('url'),
+            'image'        => app(CloudinaryMediaService::class)->url($p->hinhAnhs->where('anh_chinh', true)->first()?->url, $p->hinhAnhs->where('anh_chinh', true)->first()?->provider, 'detail'),
+            'images'       => $p->hinhAnhs->map(fn ($image) => app(CloudinaryMediaService::class)->url($image->url, $image->provider, 'detail'))->values(),
             'description'  => $p->mo_ta,
             'specs'        => $this->buildSpecs($p),
             'stock'        => $totalStock,
@@ -177,7 +178,7 @@ class ProductController extends Controller
                 'sku'        => $bt->sku,
                 'price'      => (float)$bt->gia_ban,
                 'stock'      => $bt->so_luong_ton,
-                'image'      => $bt->hinhAnhs->first()?->url,
+                'image'      => app(CloudinaryMediaService::class)->url($bt->hinhAnhs->first()?->url, $bt->hinhAnhs->first()?->provider, 'detail'),
                 'attributes' => $bt->giaTriThuocTinhs->map(fn($gt) => [
                     'name'  => $gt->thuocTinh->ten_tt,
                     'value' => $gt->gia_tri,

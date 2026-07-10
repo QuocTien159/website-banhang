@@ -8,11 +8,11 @@ use App\Models\GiaTriThuocTinh;
 use App\Models\HinhAnhSanPham;
 use App\Models\SanPham;
 use App\Models\ThuocTinh;
+use App\Services\CloudinaryMediaService;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
@@ -83,18 +83,16 @@ class AdminProductController extends Controller
 
     public function uploadImages(Request $request)
     {
+        $this->abortUnlessAdmin($request);
         $data = $request->validate([
             'images' => ['required', 'array', 'min:1', 'max:8'],
             'images.*' => ['required', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120', 'dimensions:min_width=300,min_height=300,max_width=5000,max_height=5000'],
         ]);
 
-        $images = collect($data['images'])->map(function (UploadedFile $image) {
-            $path = $image->store('products', 'public');
-            return [
-                'url' => Storage::disk('public')->url($path),
-                'path' => $path,
-            ];
-        });
+        $media = app(CloudinaryMediaService::class);
+        $images = collect($data['images'])->map(fn (UploadedFile $image) =>
+            $media->upload($image, 'products', $request->user()->ma_kh)
+        );
 
         return response()->json(['images' => $images], 201);
     }
@@ -106,7 +104,7 @@ class AdminProductController extends Controller
         $data = $this->validateProduct($request);
         $this->validateVariantCombinations($data['variants']);
 
-        $product = DB::transaction(function () use ($data) {
+        $product = DB::transaction(function () use ($data, $request) {
             $product = SanPham::create([
                 'ma_dm' => $data['category_id'],
                 'ten_sp' => trim($data['name']),
@@ -116,8 +114,8 @@ class AdminProductController extends Controller
                 'ngay_tao' => now(),
             ]);
 
-            $this->syncImages($product, $data['images']);
             $this->syncVariants($product, $data['variants']);
+            $this->syncImages($product, $data['images'], $request->user()->ma_kh);
 
             return $product;
         });
@@ -136,7 +134,7 @@ class AdminProductController extends Controller
         $data = $this->validateProduct($request, $product);
         $this->validateVariantCombinations($data['variants'], $product);
 
-        DB::transaction(function () use ($product, $data) {
+        DB::transaction(function () use ($product, $data, $request) {
             $product->update([
                 'ma_dm' => $data['category_id'],
                 'ten_sp' => trim($data['name']),
@@ -145,8 +143,8 @@ class AdminProductController extends Controller
                 'trang_thai' => $data['status'],
             ]);
 
-            $this->syncImages($product, $data['images']);
             $this->syncVariants($product, $data['variants']);
+            $this->syncImages($product, $data['images'], $request->user()->ma_kh);
         });
 
         return response()->json($this->formatDetail(
@@ -213,8 +211,11 @@ class AdminProductController extends Controller
             'status' => ['required', Rule::in(['active', 'inactive', 'out_of_stock'])],
             'images' => ['required', 'array', 'min:1', 'max:8'],
             'images.*.id' => ['nullable', 'string'],
-            'images.*.url' => ['required', 'url', 'max:500'],
+            'images.*.url' => ['required', 'string', 'max:500'],
             'images.*.path' => ['nullable', 'string', 'max:255'],
+            'images.*.upload_token' => ['nullable', 'string'],
+            'images.*.variant_id' => ['nullable', Rule::in($variantIds)],
+            'images.*.variant_sku' => ['nullable', 'string', 'max:50'],
             'images.*.is_primary' => ['required', 'boolean'],
             'variants' => ['required', 'array', 'min:1', 'max:100'],
             'variants.*.id' => ['nullable', Rule::in($variantIds)],
@@ -260,7 +261,7 @@ class AdminProductController extends Controller
         }
     }
 
-    private function syncImages(SanPham $product, array $images): void
+    private function syncImages(SanPham $product, array $images, string $actorId): void
     {
         if (collect($images)->where('is_primary', true)->count() !== 1) {
             throw ValidationException::withMessages(['images' => 'Phải chọn đúng một ảnh đại diện.']);
@@ -269,22 +270,40 @@ class AdminProductController extends Controller
         $keptIds = collect($images)->pluck('id')->filter()->all();
         $removed = $product->hinhAnhs()->whereNotIn('ma_anh', $keptIds)->get();
         foreach ($removed as $image) {
-            $this->deleteLocalImage($image->url);
+            app(CloudinaryMediaService::class)->delete($image->provider, $image->cloudinary_public_id, $this->localPath($image->url));
             $image->delete();
         }
 
-        foreach ($images as $imageData) {
+        foreach ($images as $order => $imageData) {
+            $variantId = $imageData['variant_id'] ?? null;
+            if (!$variantId && !empty($imageData['variant_sku'])) {
+                $variantId = $product->bienThes()->where('sku', $imageData['variant_sku'])->value('ma_bt');
+                if (!$variantId) {
+                    throw ValidationException::withMessages(['images' => 'Không tìm thấy SKU được gán cho ảnh.']);
+                }
+            }
+            if ($variantId && !$product->bienThes()->where('ma_bt', $variantId)->exists()) {
+                throw ValidationException::withMessages(['images' => 'Ảnh chỉ được gán cho biến thể thuộc sản phẩm này.']);
+            }
             if (!empty($imageData['id'])) {
                 $image = $product->hinhAnhs()->where('ma_anh', $imageData['id'])->firstOrFail();
                 $image->update([
-                    'url' => $imageData['url'],
                     'anh_chinh' => $imageData['is_primary'],
+                    'ma_bt' => $variantId,
+                    'thu_tu' => $order,
                 ]);
             } else {
+                $asset = $this->verifiedImageAsset($imageData, 'products', $actorId);
                 HinhAnhSanPham::create([
                     'ma_sp' => $product->ma_sp,
-                    'url' => $imageData['url'],
+                    'ma_bt' => $variantId,
+                    'url' => $asset['url'],
+                    'provider' => $asset['provider'],
+                    'cloudinary_public_id' => $asset['public_id'] ?? null,
+                    'chieu_rong' => $asset['width'] ?? null,
+                    'chieu_cao' => $asset['height'] ?? null,
                     'anh_chinh' => $imageData['is_primary'],
+                    'thu_tu' => $order,
                 ]);
             }
         }
@@ -354,12 +373,23 @@ class AdminProductController extends Controller
         }
     }
 
-    private function deleteLocalImage(string $url): void
+    private function verifiedImageAsset(array $image, string $purpose, string $actorId): array
     {
-        $storagePrefix = rtrim(Storage::disk('public')->url(''), '/').'/';
-        if (str_starts_with($url, $storagePrefix)) {
-            Storage::disk('public')->delete(substr($url, strlen($storagePrefix)));
+        if (!empty($image['upload_token'])) {
+            return app(CloudinaryMediaService::class)->verifiedUpload($image['upload_token'], $purpose, $actorId);
         }
+
+        if (!empty($image['path']) && str_starts_with($image['path'], $purpose.'/')) {
+            return ['url' => $image['url'], 'path' => $image['path'], 'provider' => 'local'];
+        }
+
+        throw ValidationException::withMessages(['images' => 'Ảnh mới phải được tải lên qua API quản lý ảnh.']);
+    }
+
+    private function localPath(string $url): ?string
+    {
+        $prefix = rtrim(\Storage::disk('public')->url(''), '/').'/';
+        return str_starts_with($url, $prefix) ? substr($url, strlen($prefix)) : null;
     }
 
     private function formatSummary(SanPham $product): array
@@ -397,8 +427,11 @@ class AdminProductController extends Controller
             'description' => $product->mo_ta,
             'images' => $product->hinhAnhs->map(fn (HinhAnhSanPham $image) => [
                 'id' => $image->ma_anh,
-                'url' => $image->url,
+                'url' => app(CloudinaryMediaService::class)->url($image->url, $image->provider, 'detail'),
+                'thumbnail_url' => app(CloudinaryMediaService::class)->url($image->url, $image->provider, 'thumbnail'),
                 'is_primary' => $image->anh_chinh,
+                'variant_id' => $image->ma_bt,
+                'order' => $image->thu_tu,
             ])->values(),
             'variants' => $product->bienThes->map(fn (BienTheSanPham $variant) => [
                 'id' => $variant->ma_bt,

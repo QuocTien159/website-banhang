@@ -110,6 +110,13 @@ export interface AdminImage {
   id?: string;
   url: string;
   path?: string;
+  upload_token?: string | null;
+  provider?: 'cloudinary' | 'local';
+  public_id?: string;
+  variant_id?: string | null;
+  variant_sku?: string;
+  order?: number;
+  thumbnail_url?: string;
   is_primary: boolean;
 }
 

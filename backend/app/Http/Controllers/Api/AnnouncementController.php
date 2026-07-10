@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\ThongBao;
+use App\Services\CloudinaryMediaService;
 
 class AnnouncementController extends Controller
 {
@@ -14,7 +15,7 @@ class AnnouncementController extends Controller
                 'id' => $item->ma_tb, 'title' => $item->tieu_de, 'content' => $item->noi_dung,
                 'type' => $item->loai, 'published_at' => $item->ngay_xuat_ban?->toISOString(),
                 'images' => $item->hinhAnhs->map(fn ($image) => [
-                    'id' => $image->ma_anh_tb, 'url' => $image->url, 'order' => $image->thu_tu,
+                'id' => $image->ma_anh_tb, 'url' => app(CloudinaryMediaService::class)->url($image->url, $image->provider, 'announcement'), 'order' => $image->thu_tu,
                 ])->values(),
             ]));
     }
