@@ -18,7 +18,7 @@ class ManualQrPaymentShippingTest extends TestCase
 
     protected bool $seed = true;
 
-    public function test_shipping_fee_is_calculated_by_shipping_zone(): void
+    public function test_shipping_fee_is_calculated_by_ghn_without_legacy_zones(): void
     {
         $customer = KhachHang::where('email', 'user@example.com')->firstOrFail();
         $variant = BienTheSanPham::where('so_luong_ton', '>', 5)->orderBy('gia_ban')->firstOrFail();
@@ -27,33 +27,29 @@ class ManualQrPaymentShippingTest extends TestCase
         $this->postJson('/api/cart/items', ['variant_id' => $variant->ma_bt, 'quantity' => 1])->assertOk();
 
         $this->postJson('/api/shipping/calculate', [
-            'province_type' => 'hcm', 'district_code' => '760', 'ward_code' => '26734', 'address_detail' => '123 Nguyễn Huệ',
+            'province_id' => '202', 'district_code' => '1442', 'ward_code' => '20101', 'address_detail' => '123 Nguyễn Huệ',
         ])
             ->assertOk()
             ->assertJsonPath('valid', true)
-            ->assertJsonPath('shipping_zone', 'inner_city')
-            ->assertJsonPath('shipping_fee', 0);
+            ->assertJsonPath('provider', 'ghn')
+            ->assertJsonPath('shipping_fee', 22000);
 
         $this->postJson('/api/shipping/calculate', [
-            'province_type' => 'hcm', 'district_code' => '783', 'ward_code' => '27565', 'address_detail' => '123 Test',
+            'province_id' => '202', 'district_code' => '1442', 'ward_code' => '20101', 'address_detail' => '123 Test',
         ])
             ->assertOk()
-            ->assertJsonPath('shipping_zone', 'suburban')
-            ->assertJsonPath('shipping_fee', 30000);
+            ->assertJsonPath('shipping_fee', 22000);
 
         $this->postJson('/api/shipping/calculate', [
-            'province_type' => 'other', 'address_detail' => '123 Test',
+            'province_id' => '202', 'district_code' => '1442', 'ward_code' => '20101', 'address_detail' => '123 Test',
         ])
             ->assertOk()
-            ->assertJsonPath('shipping_zone', 'other_province')
-            ->assertJsonPath('shipping_fee', 50000);
+            ->assertJsonPath('shipping_fee', 22000);
 
         $this->postJson('/api/shipping/calculate', [
-            'province_type' => 'hcm', 'district_code' => '760', 'ward_code' => '26734',
+            'province_id' => '202', 'district_code' => '1442', 'ward_code' => '20101',
         ])
-            ->assertOk()
-            ->assertJsonPath('valid', false)
-            ->assertJsonPath('shipping_fee', null);
+            ->assertUnprocessable();
     }
 
     public function test_customer_can_place_payos_qr_order_and_webhook_marks_it_paid(): void
@@ -72,7 +68,7 @@ class ManualQrPaymentShippingTest extends TestCase
         ]);
 
         $payosPayload = null;
-        Http::fake([
+        Http::fake(array_merge($this->ghnFakes(), [
             'https://api-merchant.payos.vn/*' => function ($request) use (&$payosPayload) {
                 $payosPayload = $request->data();
 
@@ -86,7 +82,7 @@ class ManualQrPaymentShippingTest extends TestCase
                     ],
                 ]);
             },
-        ]);
+        ]));
 
         Sanctum::actingAs($customer);
         $this->postJson('/api/cart/items', ['variant_id' => $variant->ma_bt, 'quantity' => 1])->assertOk();
@@ -94,9 +90,9 @@ class ManualQrPaymentShippingTest extends TestCase
         $order = $this->postJson('/api/orders', [
             'ten_nguoi_nhan' => 'Khách QR',
             'so_dien_thoai' => '0909123456',
-            'province_type' => 'hcm',
-            'district_code' => '760',
-            'ward_code' => '26734',
+            'province_id' => '202',
+            'district_code' => '1442',
+            'ward_code' => '20101',
             'address_detail' => '123 Nguyễn Huệ',
             'phuong_thuc_tt' => 'payos',
         ])
@@ -106,8 +102,8 @@ class ManualQrPaymentShippingTest extends TestCase
             ->assertJsonPath('order.payment_status', 'pending_payment')
             ->assertJsonPath('order.payment_link_id', 'payos-link-1')
             ->assertJsonPath('order.payment_checkout_url', 'https://pay.payos.vn/web/payos-link-1')
-            ->assertJsonPath('order.shipping', 0)
-            ->assertJsonPath('order.shipping_info.province_type', 'hcm')
+            ->assertJsonPath('order.shipping', 22000)
+            ->assertJsonPath('order.shipping_info.province_type', 'ghn')
             ->json('order');
 
         $this->assertSame('https://pay.payos.vn/qr/payos-link-1.png', $order['qr_code_url']);
@@ -139,6 +135,14 @@ class ManualQrPaymentShippingTest extends TestCase
         ])->assertOk();
 
         $stored = DonHang::findOrFail($order['id']);
+        $this->assertSame('ghn', $stored->shipping_provider);
+        $this->assertSame('202', (string) $stored->ma_tinh_thanh);
+        $this->assertSame('Ho Chi Minh', $stored->tinh_thanh);
+        $this->assertSame('1442', (string) $stored->ma_quan_huyen);
+        $this->assertSame('Quan 1', $stored->quan_huyen);
+        $this->assertSame('20101', $stored->ma_phuong_xa);
+        $this->assertSame('Ben Nghe', $stored->phuong_xa);
+        $this->assertSame('123 Nguyễn Huệ', $stored->dia_chi_chi_tiet);
         $this->assertSame('paid', $stored->trang_thai_thanh_toan);
         $this->assertSame('confirmed', $stored->trang_thai);
         $this->assertSame('payos', $stored->payment_provider);
@@ -193,6 +197,17 @@ class ManualQrPaymentShippingTest extends TestCase
 
         $this->assertSame('pending_payment', $order->fresh()->trang_thai_thanh_toan);
         $this->assertTrue(PaymentLog::where('ma_dh', $order->ma_dh)->where('event_type', 'payos_webhook_amount_mismatch')->exists());
+    }
+
+    public function test_address_api_returns_an_empty_list_when_ghn_is_not_configured(): void
+    {
+        config(['services.ghn.token' => null]);
+        Sanctum::actingAs(KhachHang::where('email', 'user@example.com')->firstOrFail());
+
+        $this->getJson('/api/address/provinces')
+            ->assertOk()
+            ->assertJsonPath('data', [])
+            ->assertJsonPath('message', 'Dữ liệu địa chỉ GHN chưa sẵn sàng.');
     }
 
     public function test_admin_order_list_syncs_paid_payos_order_from_payos_api(): void

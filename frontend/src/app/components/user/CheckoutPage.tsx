@@ -16,7 +16,7 @@ const formatPrice = (price: number) =>
 interface CheckoutForm {
   ten_nguoi_nhan: string;
   so_dien_thoai: string;
-  province_type: 'hcm' | 'hanoi' | 'other' | '';
+  province_id: string;
   district_code: string;
   ward_code: string;
   address_detail: string;
@@ -37,12 +37,13 @@ export function CheckoutPage() {
   const [provinces, setProvinces] = useState<AdministrativeUnit[]>([]);
   const [districts, setDistricts] = useState<AdministrativeUnit[]>([]);
   const [wards, setWards] = useState<AdministrativeUnit[]>([]);
+  const [addressError, setAddressError] = useState('');
 
   const { register, handleSubmit, formState: { errors }, watch, setValue } = useForm<CheckoutForm>({
     defaultValues: {
       ten_nguoi_nhan: user?.name || '',
       so_dien_thoai: user?.phone || '',
-      province_type: '',
+      province_id: '',
       district_code: '',
       ward_code: '',
       address_detail: '',
@@ -51,20 +52,25 @@ export function CheckoutPage() {
   });
 
   const paymentMethod = watch('phuong_thuc_tt');
-  const provinceType = watch('province_type');
+  const provinceId = watch('province_id');
   const districtCode = watch('district_code');
   const wardCode = watch('ward_code');
   const addressDetail = watch('address_detail');
   const shippingFee = shippingResult?.shipping_fee ?? 0;
   const total = Math.max(0, subtotal + shippingFee - (coupon?.discount ?? 0));
-  const isOtherProvince = provinceType === 'other';
-  const addressComplete = Boolean(provinceType && addressDetail.trim() && (isOtherProvince || (districtCode && wardCode)));
+  const addressComplete = Boolean(provinceId && districtCode && wardCode && addressDetail.trim());
   const canSubmit = addressComplete && shippingResult?.valid && shippingResult.shipping_fee !== null;
 
   useEffect(() => {
     orderService.getProvinces()
-      .then(setProvinces)
-      .catch(() => toast.error('Không thể tải danh sách tỉnh/thành phố.'));
+      .then((items) => {
+        setProvinces(items);
+        if (items.length === 0) setAddressError('Không thể tải địa chỉ GHN. Vui lòng thử lại sau.');
+      })
+      .catch(() => {
+        setProvinces([]);
+        setAddressError('Không thể tải địa chỉ GHN. Vui lòng thử lại sau.');
+      });
   }, []);
 
   useEffect(() => {
@@ -72,33 +78,45 @@ export function CheckoutPage() {
     setWards([]);
     setValue('district_code', '');
     setValue('ward_code', '');
-    if (!provinceType || isOtherProvince) return;
+    if (!provinceId) return;
 
-    orderService.getDistricts(provinceType)
-      .then(setDistricts)
-      .catch(() => toast.error('Không thể tải danh sách quận/huyện.'));
-  }, [provinceType, isOtherProvince, setValue]);
+    setAddressError('');
+    orderService.getDistricts(provinceId)
+      .then((items) => {
+        setDistricts(items);
+        if (items.length === 0) setAddressError('Không thể tải quận/huyện từ GHN. Vui lòng chọn lại tỉnh/thành hoặc thử lại sau.');
+      })
+      .catch(() => {
+        setDistricts([]);
+        setAddressError('Không thể tải quận/huyện từ GHN. Vui lòng thử lại sau.');
+      });
+  }, [provinceId, setValue]);
 
   useEffect(() => {
     setWards([]);
     setValue('ward_code', '');
     if (!districtCode) return;
 
+    setAddressError('');
     orderService.getWards(districtCode)
-      .then(setWards)
-      .catch(() => toast.error('Không thể tải danh sách phường/xã.'));
+      .then((items) => {
+        setWards(items);
+        if (items.length === 0) setAddressError('Không thể tải phường/xã từ GHN. Vui lòng chọn lại quận/huyện hoặc thử lại sau.');
+      })
+      .catch(() => {
+        setWards([]);
+        setAddressError('Không thể tải phường/xã từ GHN. Vui lòng thử lại sau.');
+      });
   }, [districtCode, setValue]);
 
   useEffect(() => {
     if (!addressComplete) {
       setShippingResult({
         valid: false,
-        area_type: null,
-        area_label: null,
         shipping_fee: null,
         base_shipping_fee: null,
         free_shipping_applied: false,
-        message: 'Vui lòng chọn đầy đủ địa chỉ giao hàng để tính phí vận chuyển.',
+        message: 'Chọn địa chỉ để tính phí vận chuyển',
       });
       return;
     }
@@ -107,7 +125,7 @@ export function CheckoutPage() {
       setShippingLoading(true);
       try {
         setShippingResult(await orderService.calculateShipping({
-          province_type: provinceType,
+          province_id: provinceId,
           district_code: districtCode,
           ward_code: wardCode,
           address_detail: addressDetail,
@@ -115,11 +133,9 @@ export function CheckoutPage() {
       } catch (error: any) {
         setShippingResult({
           valid: false,
-          area_type: null,
-          area_label: null,
           shipping_fee: null,
           free_shipping_applied: false,
-          message: error.response?.data?.message ?? 'Không thể tính phí vận chuyển.',
+          message: error.response?.data?.message ?? 'Không thể tính phí GHN, vui lòng thử lại',
         });
       } finally {
         setShippingLoading(false);
@@ -127,7 +143,7 @@ export function CheckoutPage() {
     }, 350);
 
     return () => window.clearTimeout(timer);
-  }, [addressComplete, provinceType, districtCode, wardCode, addressDetail]);
+  }, [addressComplete, provinceId, districtCode, wardCode, addressDetail]);
 
   const cartCount = useMemo(() => cart.reduce((sum, item) => sum + item.quantity, 0), [cart]);
 
@@ -153,9 +169,9 @@ export function CheckoutPage() {
       const payload: PlaceOrderPayload = {
         ten_nguoi_nhan: data.ten_nguoi_nhan,
         so_dien_thoai: data.so_dien_thoai,
-        province_type: data.province_type as 'hcm' | 'hanoi' | 'other',
-        district_code: data.province_type === 'other' ? undefined : data.district_code,
-        ward_code: data.province_type === 'other' ? undefined : data.ward_code,
+        province_id: data.province_id,
+        district_code: data.district_code,
+        ward_code: data.ward_code,
         address_detail: data.address_detail,
         phuong_thuc_tt: data.phuong_thuc_tt,
         ghi_chu: data.ghi_chu || undefined,
@@ -211,28 +227,27 @@ export function CheckoutPage() {
                     className="w-full px-3 py-2 text-sm border rounded-lg"
                   />
                 </TextInput>
-                <TextInput label="Tỉnh/thành phố *" error={errors.province_type?.message}>
-                  <select {...register('province_type', { required: 'Vui lòng chọn tỉnh/thành phố' })} className="w-full px-3 py-2 text-sm border rounded-lg bg-white">
+                <TextInput label="Tỉnh/thành phố *" error={errors.province_id?.message}>
+                  <select
+                    {...register('province_id', { required: 'Vui lòng chọn tỉnh/thành phố' })}
+                    className="w-full px-3 py-2 text-sm border rounded-lg bg-white"
+                  >
                     <option value="">Chọn tỉnh/thành phố</option>
                     {provinces.map((province) => <option key={province.code} value={province.code}>{province.name}</option>)}
                   </select>
                 </TextInput>
-                {!isOtherProvince && (
-                  <>
                     <TextInput label="Quận/huyện *" error={errors.district_code?.message}>
-                      <select {...register('district_code', { validate: (value) => isOtherProvince || Boolean(value) || 'Vui lòng chọn quận/huyện' })} disabled={!provinceType} className="w-full px-3 py-2 text-sm border rounded-lg bg-white disabled:bg-gray-100">
+                      <select {...register('district_code', { required: 'Vui lòng chọn quận/huyện' })} disabled={!provinceId} className="w-full px-3 py-2 text-sm border rounded-lg bg-white disabled:bg-gray-100">
                         <option value="">Chọn quận/huyện</option>
                         {districts.map((district) => <option key={district.code} value={district.code}>{district.name}</option>)}
                       </select>
                     </TextInput>
                     <TextInput label="Phường/xã *" error={errors.ward_code?.message}>
-                      <select {...register('ward_code', { validate: (value) => isOtherProvince || Boolean(value) || 'Vui lòng chọn phường/xã' })} disabled={!districtCode} className="w-full px-3 py-2 text-sm border rounded-lg bg-white disabled:bg-gray-100">
+                      <select {...register('ward_code', { required: 'Vui lòng chọn phường/xã' })} disabled={!districtCode} className="w-full px-3 py-2 text-sm border rounded-lg bg-white disabled:bg-gray-100">
                         <option value="">Chọn phường/xã</option>
                         {wards.map((ward) => <option key={ward.code} value={ward.code}>{ward.name}</option>)}
                       </select>
                     </TextInput>
-                  </>
-                )}
                 <TextInput label="Địa chỉ nhà/số nhà/tên đường *" error={errors.address_detail?.message}>
                   <input {...register('address_detail', { required: 'Vui lòng nhập địa chỉ nhà/số nhà/tên đường' })} placeholder="VD: 12 Nguyễn Trãi, hẻm 5, chung cư ABC..." className="w-full px-3 py-2 text-sm border rounded-lg" />
                 </TextInput>
@@ -241,6 +256,7 @@ export function CheckoutPage() {
                   <textarea {...register('ghi_chu')} rows={2} className="w-full px-3 py-2 text-sm border rounded-lg resize-none" />
                 </label>
               </div>
+              {addressError && <p className="mt-3 text-sm text-red-600">{addressError}</p>}
             </section>
 
             <section className="bg-white rounded-xl border border-border p-6">
@@ -319,13 +335,12 @@ export function CheckoutPage() {
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Vận chuyển</span>
                   <span className={shippingFee === 0 && shippingResult?.valid ? 'text-green-600' : ''}>
-                    {shippingLoading ? 'Đang tính...' : shippingResult?.shipping_fee === null ? 'Chưa đủ địa chỉ' : shippingFee === 0 ? 'Miễn phí' : formatPrice(shippingFee)}
+                    {shippingLoading ? 'Đang tính phí GHN…' : shippingResult?.shipping_fee === null ? 'Chọn địa chỉ để tính phí vận chuyển' : shippingFee === 0 ? 'Miễn phí' : formatPrice(shippingFee)}
                   </span>
                 </div>
                 {shippingResult?.valid && shippingResult.base_shipping_fee !== null && shippingResult.free_shipping_applied && (
                   <p className="text-xs text-muted-foreground line-through">Phí gốc: {formatPrice(shippingResult.base_shipping_fee ?? 0)}</p>
                 )}
-                {shippingResult?.area_label && <p className="text-xs text-muted-foreground">Khu vực: {shippingResult.area_label}</p>}
                 {shippingResult?.message && <p className={`text-xs ${shippingResult.valid ? 'text-green-600' : 'text-orange-600'}`}>{shippingResult.message}</p>}
                 {coupon && <div className="flex justify-between text-green-600"><span>Giảm giá ({coupon.code})</span><span>-{formatPrice(coupon.discount)}</span></div>}
                 <div className="flex justify-between font-bold text-base border-t border-border pt-2">

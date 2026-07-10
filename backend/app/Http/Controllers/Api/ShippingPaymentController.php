@@ -4,8 +4,8 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\GioHang;
+use App\Services\GhnShippingService;
 use App\Services\ShippingPaymentService;
-use App\Services\VietnamAdministrativeService;
 use Illuminate\Http\Request;
 
 class ShippingPaymentController extends Controller
@@ -13,23 +13,21 @@ class ShippingPaymentController extends Controller
     public function calculate(Request $request, ShippingPaymentService $service)
     {
         $data = $request->validate([
-            'province_type' => ['nullable', 'string', 'max:20'],
-            'district_code' => ['nullable', 'string', 'max:20'],
-            'ward_code' => ['nullable', 'string', 'max:20'],
-            'address_detail' => ['nullable', 'string', 'max:255'],
+            'province_id' => ['required', 'string', 'max:20'],
+            'district_code' => ['required', 'string', 'max:20'],
+            'ward_code' => ['required', 'string', 'max:20'],
+            'address_detail' => ['required', 'string', 'max:255'],
         ]);
-
-        $cart = GioHang::with('chiTiets.bienThe')
-            ->where('ma_kh', $request->user()->ma_kh)
-            ->first();
+        $cart = GioHang::with('chiTiets.bienThe.sanPham')->where('ma_kh', $request->user()->ma_kh)->first();
         $subtotal = $cart?->chiTiets?->sum(fn ($item) => $item->bienThe?->gia_ban * $item->so_luong) ?? 0;
 
         return response()->json($service->calculateShipping(
-            (float) $subtotal,
-            $data['province_type'] ?? null,
-            $data['district_code'] ?? null,
-            $data['ward_code'] ?? null,
-            $data['address_detail'] ?? null
+            (float) $subtotal, $data['district_code'], $data['ward_code'], $data['address_detail'], $data['province_id'],
+            $cart?->chiTiets?->map(fn ($item) => [
+                'name' => $item->bienThe?->sanPham?->ten_sp ?? $item->ma_bien_the,
+                'quantity' => (int) $item->so_luong,
+                'price' => (int) round((float) ($item->bienThe?->gia_ban ?? 0)),
+            ])->values()->all() ?? []
         ));
     }
 
@@ -38,20 +36,33 @@ class ShippingPaymentController extends Controller
         return response()->json($service->bankInfo());
     }
 
-    public function provinces(VietnamAdministrativeService $service)
+    public function provinces(GhnShippingService $ghnShippingService)
     {
-        return response()->json($service->provinces());
+        return $this->addressResponse(fn () => $ghnShippingService->provinces(), $ghnShippingService);
     }
 
-    public function districts(Request $request, VietnamAdministrativeService $service)
+    public function districts(Request $request, GhnShippingService $ghnShippingService)
     {
-        $data = $request->validate(['province_type' => ['required', 'string', 'max:20']]);
-        return response()->json($service->districts($data['province_type']));
+        $data = $request->validate(['province_id' => ['required', 'string', 'max:20']]);
+        return $this->addressResponse(fn () => $ghnShippingService->districts($data['province_id']), $ghnShippingService);
     }
 
-    public function wards(Request $request, VietnamAdministrativeService $service)
+    public function wards(Request $request, GhnShippingService $ghnShippingService)
     {
         $data = $request->validate(['district_code' => ['required', 'string', 'max:20']]);
-        return response()->json($service->wards($data['district_code']));
+        return $this->addressResponse(fn () => $ghnShippingService->wards($data['district_code']), $ghnShippingService);
+    }
+
+    private function addressResponse(callable $callback, GhnShippingService $ghnShippingService)
+    {
+        if (!$ghnShippingService->isConfigured()) {
+            return response()->json(['data' => [], 'message' => 'Dữ liệu địa chỉ GHN chưa sẵn sàng.']);
+        }
+
+        try {
+            return response()->json(['data' => $callback(), 'message' => null]);
+        } catch (\Throwable $exception) {
+            return response()->json(['data' => [], 'message' => $ghnShippingService->friendlyMessage($exception)]);
+        }
     }
 }

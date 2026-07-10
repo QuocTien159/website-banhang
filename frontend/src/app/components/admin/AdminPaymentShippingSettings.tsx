@@ -5,15 +5,26 @@ import { adminService, orderService, type AdministrativeUnit } from '../../servi
 import { Button } from '../ui/button';
 
 type SettingsState = {
-  inner_city_fee: number;
-  outer_city_fee: number;
-  other_province_fee: number;
+  shipping_provider: 'ghn';
+  ghn_enabled: boolean;
+  ghn_environment: 'sandbox' | 'production';
+  ghn_shop_id: string;
+  ghn_token_configured: boolean;
+  pickup_name: string;
+  pickup_phone: string;
+  pickup_province_id: string;
+  pickup_province_name: string;
+  pickup_district_id: string;
+  pickup_district_name: string;
+  pickup_ward_code: string;
+  pickup_ward_name: string;
+  pickup_address: string;
+  default_weight_gram: number;
+  default_length_cm: number;
+  default_width_cm: number;
+  default_height_cm: number;
   free_shipping_enabled: boolean;
   free_shipping_min_order_value: number;
-  shop_province: string;
-  shop_province_code: string;
-  inner_city_districts: string[];
-  inner_city_district_codes: string[];
   bank_code: string;
   bank_name: string;
   account_number: string;
@@ -22,15 +33,26 @@ type SettingsState = {
 };
 
 const emptySettings: SettingsState = {
-  inner_city_fee: 0,
-  outer_city_fee: 0,
-  other_province_fee: 0,
+  shipping_provider: 'ghn',
+  ghn_enabled: false,
+  ghn_environment: 'sandbox',
+  ghn_shop_id: '',
+  ghn_token_configured: false,
+  pickup_name: '',
+  pickup_phone: '',
+  pickup_province_id: '',
+  pickup_province_name: '',
+  pickup_district_id: '',
+  pickup_district_name: '',
+  pickup_ward_code: '',
+  pickup_ward_name: '',
+  pickup_address: '',
+  default_weight_gram: 500,
+  default_length_cm: 25,
+  default_width_cm: 20,
+  default_height_cm: 10,
   free_shipping_enabled: true,
   free_shipping_min_order_value: 0,
-  shop_province: '',
-  shop_province_code: '',
-  inner_city_districts: [],
-  inner_city_district_codes: [],
   bank_code: '',
   bank_name: '',
   account_number: '',
@@ -42,23 +64,36 @@ export function AdminPaymentShippingSettings() {
   const [settings, setSettings] = useState<SettingsState>(emptySettings);
   const [provinces, setProvinces] = useState<AdministrativeUnit[]>([]);
   const [districts, setDistricts] = useState<AdministrativeUnit[]>([]);
+  const [wards, setWards] = useState<AdministrativeUnit[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [addressError, setAddressError] = useState('');
 
   useEffect(() => {
     Promise.all([adminService.getPaymentShippingSettings(), orderService.getProvinces()])
       .then(([data, provinceList]) => {
         setProvinces(provinceList);
         setSettings({
-          inner_city_fee: Number(data.inner_city_fee ?? 0),
-          outer_city_fee: Number(data.outer_city_fee ?? 0),
-          other_province_fee: Number(data.other_province_fee ?? 0),
+          shipping_provider: 'ghn',
+          ghn_enabled: Boolean(data.ghn_enabled),
+          ghn_environment: data.ghn_environment ?? 'sandbox',
+          ghn_shop_id: data.ghn_shop_id ?? '',
+          ghn_token_configured: Boolean(data.ghn_token_configured),
+          pickup_name: data.pickup_name ?? '',
+          pickup_phone: data.pickup_phone ?? '',
+          pickup_province_id: data.pickup_province_id ? String(data.pickup_province_id) : '',
+          pickup_province_name: data.pickup_province_name ?? '',
+          pickup_district_id: data.pickup_district_id ? String(data.pickup_district_id) : '',
+          pickup_district_name: data.pickup_district_name ?? '',
+          pickup_ward_code: data.pickup_ward_code ?? '',
+          pickup_ward_name: data.pickup_ward_name ?? '',
+          pickup_address: data.pickup_address ?? '',
+          default_weight_gram: Number(data.default_weight_gram ?? 500),
+          default_length_cm: Number(data.default_length_cm ?? 25),
+          default_width_cm: Number(data.default_width_cm ?? 20),
+          default_height_cm: Number(data.default_height_cm ?? 10),
           free_shipping_enabled: Boolean(data.free_shipping_enabled),
           free_shipping_min_order_value: Number(data.free_shipping_min_order_value ?? 0),
-          shop_province: data.shop_province ?? '',
-          shop_province_code: data.shop_province_code ?? '',
-          inner_city_districts: data.inner_city_districts ?? [],
-          inner_city_district_codes: (data.inner_city_district_codes ?? []).map(String),
           bank_code: data.bank_code ?? '',
           bank_name: data.bank_name ?? '',
           account_number: data.account_number ?? '',
@@ -66,47 +101,63 @@ export function AdminPaymentShippingSettings() {
           transfer_template: data.transfer_template ?? 'TienProSport {{order_code}}',
         });
       })
-      .catch(() => toast.error('Không thể tải cấu hình.'))
+      .catch(() => setAddressError('Không thể tải cấu hình hoặc dữ liệu địa chỉ GHN.'))
       .finally(() => setLoading(false));
   }, []);
 
   useEffect(() => {
-    if (!settings.shop_province_code) {
+    const provinceCode = settings.pickup_province_id;
+    if (!provinceCode) {
       setDistricts([]);
       return;
     }
-    orderService.getDistricts(settings.shop_province_code)
+    orderService.getDistricts(provinceCode)
       .then(setDistricts)
-      .catch(() => toast.error('Không thể tải danh sách quận/huyện của shop.'));
-  }, [settings.shop_province_code]);
+      .catch(() => setAddressError('Không thể tải danh sách quận/huyện của kho từ GHN.'));
+  }, [settings.pickup_province_id]);
+
+  useEffect(() => {
+    setWards([]);
+    if (!settings.pickup_district_id) return;
+    orderService.getWards(settings.pickup_district_id)
+      .then(setWards)
+      .catch(() => setAddressError('Không thể tải danh sách phường/xã của kho từ GHN.'));
+  }, [settings.pickup_district_id]);
 
   const update = <K extends keyof SettingsState>(key: K, value: SettingsState[K]) => {
     setSettings((current) => ({ ...current, [key]: value }));
-  };
-
-  const toggleDistrict = (district: AdministrativeUnit) => {
-    setSettings((current) => {
-      const exists = current.inner_city_district_codes.includes(district.code);
-      return {
-        ...current,
-        inner_city_district_codes: exists
-          ? current.inner_city_district_codes.filter((code) => code !== district.code)
-          : [...current.inner_city_district_codes, district.code],
-        inner_city_districts: exists
-          ? current.inner_city_districts.filter((name) => name !== district.name)
-          : [...current.inner_city_districts, district.name],
-      };
-    });
   };
 
   const changeShopProvince = (provinceCode: string) => {
     const province = provinces.find((item) => item.code === provinceCode);
     setSettings((current) => ({
       ...current,
-      shop_province_code: provinceCode,
-      shop_province: province?.name ?? '',
-      inner_city_districts: [],
-      inner_city_district_codes: [],
+      pickup_province_id: provinceCode,
+      pickup_province_name: province?.name ?? '',
+      pickup_district_id: '',
+      pickup_district_name: '',
+      pickup_ward_code: '',
+      pickup_ward_name: '',
+    }));
+  };
+
+  const changePickupDistrict = (districtCode: string) => {
+    const district = districts.find((item) => item.code === districtCode);
+    setSettings((current) => ({
+      ...current,
+      pickup_district_id: districtCode,
+      pickup_district_name: district?.name ?? '',
+      pickup_ward_code: '',
+      pickup_ward_name: '',
+    }));
+  };
+
+  const changePickupWard = (wardCode: string) => {
+    const ward = wards.find((item) => item.code === wardCode);
+    setSettings((current) => ({
+      ...current,
+      pickup_ward_code: wardCode,
+      pickup_ward_name: ward?.name ?? '',
     }));
   };
 
@@ -114,15 +165,25 @@ export function AdminPaymentShippingSettings() {
     setSaving(true);
     try {
       await adminService.updatePaymentShippingSettings({
-        inner_city_fee: settings.inner_city_fee,
-        outer_city_fee: settings.outer_city_fee,
-        other_province_fee: settings.other_province_fee,
+        shipping_provider: settings.shipping_provider,
+        ghn_enabled: settings.ghn_enabled,
+        ghn_environment: settings.ghn_environment,
+        ghn_shop_id: settings.ghn_shop_id,
+        pickup_name: settings.pickup_name,
+        pickup_phone: settings.pickup_phone,
+        pickup_province_id: settings.pickup_province_id ? Number(settings.pickup_province_id) : null,
+        pickup_province_name: settings.pickup_province_name,
+        pickup_district_id: settings.pickup_district_id ? Number(settings.pickup_district_id) : null,
+        pickup_district_name: settings.pickup_district_name,
+        pickup_ward_code: settings.pickup_ward_code,
+        pickup_ward_name: settings.pickup_ward_name,
+        pickup_address: settings.pickup_address,
+        default_weight_gram: settings.default_weight_gram,
+        default_length_cm: settings.default_length_cm,
+        default_width_cm: settings.default_width_cm,
+        default_height_cm: settings.default_height_cm,
         free_shipping_enabled: settings.free_shipping_enabled,
         free_shipping_min_order_value: settings.free_shipping_min_order_value,
-        shop_province: settings.shop_province,
-        shop_province_code: settings.shop_province_code,
-        inner_city_districts: settings.inner_city_districts,
-        inner_city_district_codes: settings.inner_city_district_codes,
         bank_code: settings.bank_code,
         bank_name: settings.bank_name,
         account_number: settings.account_number,
@@ -149,45 +210,77 @@ export function AdminPaymentShippingSettings() {
       </div>
 
       <section className="bg-white rounded-xl border p-5 space-y-4">
-        <h3 className="font-semibold">Phí ship theo khu vực</h3>
-        <div className="grid md:grid-cols-3 gap-4">
-          <NumberField label="Phí nội thành" value={settings.inner_city_fee} onChange={(value) => update('inner_city_fee', value)} />
-          <NumberField label="Phí ngoại thành" value={settings.outer_city_fee} onChange={(value) => update('outer_city_fee', value)} />
-          <NumberField label="Phí tỉnh khác" value={settings.other_province_fee} onChange={(value) => update('other_province_fee', value)} />
+        <div>
+          <h3 className="font-semibold">GHN</h3>
+          <p className="text-xs text-muted-foreground">Token lấy từ file .env. Shop ID có thể lấy từ .env hoặc nhập tại đây.</p>
         </div>
+        <div className="grid md:grid-cols-3 gap-4">
+          <label className="block">
+            <span className="text-sm font-medium">Nhà vận chuyển</span>
+            <input value="GHN" disabled className="mt-1 w-full border rounded-lg px-3 py-2 text-sm bg-gray-100" />
+          </label>
+          <label className="block">
+            <span className="text-sm font-medium">Môi trường</span>
+            <select value={settings.ghn_environment} onChange={(event) => update('ghn_environment', event.target.value as SettingsState['ghn_environment'])} className="mt-1 w-full border rounded-lg px-3 py-2 text-sm bg-white">
+              <option value="sandbox">Sandbox</option>
+              <option value="production">Production</option>
+            </select>
+          </label>
+          <TextField label="Shop ID GHN" value={settings.ghn_shop_id} onChange={(value) => update('ghn_shop_id', value)} />
+        </div>
+        <label className="inline-flex items-center gap-2 text-sm">
+          <input type="checkbox" checked={settings.ghn_enabled} onChange={(event) => update('ghn_enabled', event.target.checked)} />
+          Bật tính phí vận chuyển bằng GHN
+        </label>
+        <p className={`text-xs ${settings.ghn_token_configured ? 'text-green-600' : 'text-red-600'}`}>
+          {settings.ghn_token_configured ? 'Token GHN đã được cấu hình trong .env.' : 'Chưa có token GHN trong .env.'}
+        </p>
+        {addressError && <p className="text-xs text-red-600">{addressError}</p>}
+
+        <div className="grid md:grid-cols-2 gap-4">
+          <TextField label="Tên người gửi/kho" value={settings.pickup_name} onChange={(value) => update('pickup_name', value)} />
+          <TextField label="Số điện thoại kho" value={settings.pickup_phone} onChange={(value) => update('pickup_phone', value)} />
+          <label className="block">
+            <span className="text-sm font-medium">Tỉnh/thành kho lấy hàng</span>
+            <select value={settings.pickup_province_id} onChange={(event) => changeShopProvince(event.target.value)} className="mt-1 w-full border rounded-lg px-3 py-2 text-sm bg-white">
+              <option value="">Chọn tỉnh/thành</option>
+              {provinces.map((province) => <option key={province.code} value={province.code}>{province.name}</option>)}
+            </select>
+          </label>
+          <label className="block">
+            <span className="text-sm font-medium">Quận/huyện kho lấy hàng</span>
+            <select value={settings.pickup_district_id} onChange={(event) => changePickupDistrict(event.target.value)} disabled={!settings.pickup_province_id} className="mt-1 w-full border rounded-lg px-3 py-2 text-sm bg-white disabled:bg-gray-100">
+              <option value="">Chọn quận/huyện</option>
+              {districts.map((district) => <option key={district.code} value={district.code}>{district.name}</option>)}
+            </select>
+          </label>
+          <label className="block">
+            <span className="text-sm font-medium">Phường/xã kho lấy hàng</span>
+            <select value={settings.pickup_ward_code} onChange={(event) => changePickupWard(event.target.value)} disabled={!settings.pickup_district_id} className="mt-1 w-full border rounded-lg px-3 py-2 text-sm bg-white disabled:bg-gray-100">
+              <option value="">Chọn phường/xã</option>
+              {wards.map((ward) => <option key={ward.code} value={ward.code}>{ward.name}</option>)}
+            </select>
+          </label>
+          <TextField label="Địa chỉ chi tiết kho" value={settings.pickup_address} onChange={(value) => update('pickup_address', value)} />
+        </div>
+        <div className="grid md:grid-cols-4 gap-4">
+          <NumberField label="Cân nặng mặc định (gram)" value={settings.default_weight_gram} onChange={(value) => update('default_weight_gram', value)} />
+          <NumberField label="Dài mặc định (cm)" value={settings.default_length_cm} onChange={(value) => update('default_length_cm', value)} />
+          <NumberField label="Rộng mặc định (cm)" value={settings.default_width_cm} onChange={(value) => update('default_width_cm', value)} />
+          <NumberField label="Cao mặc định (cm)" value={settings.default_height_cm} onChange={(value) => update('default_height_cm', value)} />
+        </div>
+      </section>
+
+      <section className="bg-white rounded-xl border p-5 space-y-4">
+        <h3 className="font-semibold">Chính sách miễn phí vận chuyển</h3>
         <label className="inline-flex items-center gap-2 text-sm">
           <input type="checkbox" checked={settings.free_shipping_enabled} onChange={(event) => update('free_shipping_enabled', event.target.checked)} />
           Bật miễn phí ship theo ngưỡng đơn hàng
         </label>
         <div className="grid md:grid-cols-2 gap-4">
           <NumberField label="Ngưỡng miễn phí ship" value={settings.free_shipping_min_order_value} onChange={(value) => update('free_shipping_min_order_value', value)} />
-          <label className="block">
-            <span className="text-sm font-medium">Tỉnh/thành của shop</span>
-            <select value={settings.shop_province_code} onChange={(event) => changeShopProvince(event.target.value)} className="mt-1 w-full border rounded-lg px-3 py-2 text-sm bg-white">
-              <option value="">Chọn tỉnh/thành</option>
-              {provinces.map((province) => <option key={province.code} value={province.code}>{province.name}</option>)}
-            </select>
-          </label>
         </div>
-        <div>
-          <p className="text-sm font-medium mb-2">Quận/huyện nội thành</p>
-          {!settings.shop_province_code ? (
-            <p className="text-sm text-muted-foreground">Chọn tỉnh/thành của shop trước.</p>
-          ) : (
-            <div className="grid md:grid-cols-3 gap-2 max-h-72 overflow-y-auto border rounded-lg p-3">
-              {districts.map((district) => (
-                <label key={district.code} className="inline-flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={settings.inner_city_district_codes.includes(district.code)}
-                    onChange={() => toggleDistrict(district)}
-                  />
-                  {district.name}
-                </label>
-              ))}
-            </div>
-          )}
-        </div>
+        <p className="text-xs text-muted-foreground">Phí vận chuyển được GHN báo theo địa chỉ nhận hàng. Các mức phí khu vực cũ không còn được sử dụng.</p>
       </section>
 
       <section className="bg-white rounded-xl border p-5 space-y-4">

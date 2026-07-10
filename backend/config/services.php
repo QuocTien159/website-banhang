@@ -46,4 +46,12 @@ return [
         'ca_bundle' => env('PAYOS_CA_BUNDLE'),
     ],
 
+    'ghn' => [
+        'env' => env('GHN_ENV', 'sandbox'),
+        'token' => env('GHN_TOKEN'),
+        'shop_id' => env('GHN_SHOP_ID'),
+        'base_url' => env('GHN_BASE_URL', 'https://dev-online-gateway.ghn.vn'),
+        'verify_ssl' => env('GHN_VERIFY_SSL', true),
+    ],
+
 ];

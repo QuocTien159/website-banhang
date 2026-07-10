@@ -35,16 +35,16 @@ class PurchaseFlowTest extends TestCase
         $this->postJson('/api/orders', [
             'ten_nguoi_nhan' => 'Khách hàng Demo',
             'so_dien_thoai' => '0909123456',
-            'province_type' => 'hcm',
-            'district_code' => '760',
-            'ward_code' => '26734',
+            'province_id' => '202',
+            'district_code' => '1442',
+            'ward_code' => '20101',
             'address_detail' => '123 Nguyễn Huệ',
             'phuong_thuc_tt' => 'cod',
             'ghi_chu' => 'Giao giờ hành chính',
         ])
             ->assertCreated()
             ->assertJsonPath('order.status', 'pending')
-            ->assertJsonPath('order.shipping_info.province_type', 'hcm')
+            ->assertJsonPath('order.shipping_info.province_type', 'ghn')
             ->assertJsonPath('order.items.0.variant_id', $variant->ma_bt);
 
         $this->assertSame($stockBefore - 2, $variant->fresh()->so_luong_ton);
@@ -62,7 +62,7 @@ class PurchaseFlowTest extends TestCase
         $this->postJson('/api/orders', [
             'ten_nguoi_nhan' => 'Khách hàng Demo',
             'so_dien_thoai' => '0909123456',
-            'province_type' => 'hcm',
+            'province_id' => '202',
             'district_code' => '490',
             'ward_code' => '20194',
             'address_detail' => '123 Sai Quan Hệ',

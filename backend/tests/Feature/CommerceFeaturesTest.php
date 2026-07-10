@@ -44,9 +44,9 @@ class CommerceFeaturesTest extends TestCase
         $order = $this->postJson('/api/orders', [
             'ten_nguoi_nhan' => 'Demo',
             'so_dien_thoai' => '0909123456',
-            'province_type' => 'hcm',
-            'district_code' => '760',
-            'ward_code' => '26734',
+            'province_id' => '202',
+            'district_code' => '1442',
+            'ward_code' => '20101',
             'address_detail' => '123 Nguyễn Huệ',
             'phuong_thuc_tt' => 'cod',
             'coupon_code' => 'SPORT20',

@@ -64,9 +64,9 @@ class OrderController extends Controller
         $data = $request->validate([
             'ten_nguoi_nhan' => ['required', 'string', 'max:100'],
             'so_dien_thoai' => ['required', 'string', 'regex:/^[0-9]{10,11}$/'],
-            'province_type' => ['required', 'in:hcm,hanoi,other'],
-            'district_code' => ['nullable', 'string', 'max:20'],
-            'ward_code' => ['nullable', 'string', 'max:20'],
+            'province_id' => ['required', 'string', 'max:20'],
+            'district_code' => ['required', 'string', 'max:20'],
+            'ward_code' => ['required', 'string', 'max:20'],
             'address_detail' => ['required', 'string', 'max:255'],
             'phuong_thuc_tt' => ['required', 'in:cod,banking,bank_transfer_qr,payos'],
             'ghi_chu' => ['nullable', 'string', 'max:500'],
@@ -98,10 +98,15 @@ class OrderController extends Controller
         // Backend luôn tự tính phí ship từ địa chỉ hành chính hợp lệ, không tin phí gửi từ frontend.
         $shippingResult = $shippingPaymentService->calculateShipping(
             $subtotal,
-            $data['province_type'],
             $data['district_code'] ?? null,
             $data['ward_code'] ?? null,
-            $data['address_detail']
+            $data['address_detail'],
+            $data['province_id'],
+            $cart->chiTiets->map(fn ($item) => [
+                'name' => $item->bienThe?->sanPham?->ten_sp ?? $item->ma_bien_the,
+                'quantity' => (int) $item->so_luong,
+                'price' => (int) round((float) ($item->bienThe?->gia_ban ?? 0)),
+            ])->values()->all()
         );
 
         if (!$shippingResult['valid']) {
@@ -144,8 +149,14 @@ class OrderController extends Controller
                 'ngay_dat' => now(),
                 'tam_tinh' => $subtotal,
                 'phi_van_chuyen' => $shipping,
-                'loai_khu_vuc_giao' => $shippingResult['shipping_zone'],
-                'shipping_zone' => $shippingResult['shipping_zone'],
+                'loai_khu_vuc_giao' => 'ghn',
+                'shipping_zone' => 'ghn',
+                'shipping_provider' => 'ghn',
+                'shipping_service_id' => $shippingResult['service_id'] ?? null,
+                'shipping_service_type_id' => isset($shippingResult['service_type_id']) ? (string) $shippingResult['service_type_id'] : null,
+                'shipping_service_name' => $shippingResult['service_name'] ?? null,
+                'shipping_status' => 'fee_calculated',
+                'shipping_fee_breakdown' => $shippingResult['fee_breakdown'] ?? null,
                 'ma_km' => $promotion?->ma_km,
                 'ma_khuyen_mai' => $promotion?->code,
                 'so_tien_giam' => $discount,
@@ -271,6 +282,12 @@ class OrderController extends Controller
             'shipping' => (float) ($order->phi_van_chuyen ?? 0),
             'shipping_area_type' => $order->loai_khu_vuc_giao,
             'shipping_zone' => $order->shipping_zone ?? $order->loai_khu_vuc_giao,
+            'shipping_provider' => $order->shipping_provider,
+            'shipping_service_id' => $order->shipping_service_id,
+            'shipping_service_type_id' => $order->shipping_service_type_id,
+            'shipping_service_name' => $order->shipping_service_name,
+            'shipping_order_code' => $order->shipping_order_code,
+            'shipping_status' => $order->shipping_status,
             'coupon_code' => $order->ma_khuyen_mai,
             'discount' => (float) ($order->so_tien_giam ?? 0),
             'payment_method' => $order->phuong_thuc_tt,

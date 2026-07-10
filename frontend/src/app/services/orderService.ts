@@ -30,13 +30,19 @@ export interface ApiOrder {
   payment_confirmed_at?: string | null;
   paid_at?: string | null;
   shipping_area_type?: string | null;
+  shipping_provider?: 'manual' | 'ghn' | string | null;
+  shipping_service_id?: string | null;
+  shipping_service_type_id?: string | null;
+  shipping_service_name?: string | null;
+  shipping_order_code?: string | null;
+  shipping_status?: string | null;
   bank?: BankInfo;
   shipping_info: {
     name: string;
     phone: string;
     address: string;
     province?: string;
-    province_type?: 'hcm' | 'hanoi' | 'other';
+    province_type?: 'ghn';
     district?: string;
     ward?: string;
     province_code?: string;
@@ -51,9 +57,9 @@ export interface ApiOrder {
 export interface PlaceOrderPayload {
   ten_nguoi_nhan: string;
   so_dien_thoai: string;
-  province_type: 'hcm' | 'hanoi' | 'other';
-  district_code?: string;
-  ward_code?: string;
+  province_id: string;
+  district_code: string;
+  ward_code: string;
   address_detail: string;
   phuong_thuc_tt: 'cod' | 'banking' | 'bank_transfer_qr' | 'payos';
   ghi_chu?: string;
@@ -70,20 +76,27 @@ export interface BankInfo {
 
 export interface ShippingCalculation {
   valid?: boolean;
-  area_type: 'inner_city' | 'suburban' | 'other_province' | null;
-  shipping_zone?: 'inner_city' | 'suburban' | 'other_province' | null;
-  area_label: string | null;
+  area_type?: 'ghn' | null;
+  shipping_zone?: 'ghn' | null;
+  provider?: 'manual' | 'ghn' | string | null;
   shipping_fee: number | null;
   base_shipping_fee?: number;
   free_shipping_applied: boolean;
   free_shipping_min_order_value?: number;
+  service_id?: string | null;
+  service_type_id?: string | number | null;
+  service_name?: string | null;
   message?: string | null;
 }
 
 export interface AdministrativeUnit {
   code: string;
+  id?: number | string;
   name: string;
-  shipping_zone?: 'inner_city' | 'suburban' | 'other_province';
+  provider?: 'ghn' | string;
+  province_id?: number;
+  district_id?: number;
+  shipping_zone?: 'ghn';
 }
 
 export interface AdminCategory {
@@ -206,21 +219,21 @@ export const orderService = {
     const { data } = await apiClient.post('/orders', payload);
     return data;
   },
-  async calculateShipping(payload: { province_type?: string; district_code?: string; ward_code?: string; address_detail?: string }): Promise<ShippingCalculation> {
+  async calculateShipping(payload: { province_id: string; district_code: string; ward_code: string; address_detail: string }): Promise<ShippingCalculation> {
     const { data } = await apiClient.post('/shipping/calculate', payload);
     return data;
   },
   async getProvinces(): Promise<AdministrativeUnit[]> {
     const { data } = await apiClient.get('/address/provinces');
-    return data;
+    return data.data ?? [];
   },
-  async getDistricts(provinceType: string): Promise<AdministrativeUnit[]> {
-    const { data } = await apiClient.get('/address/districts', { params: { province_type: provinceType } });
-    return data;
+  async getDistricts(provinceId: string): Promise<AdministrativeUnit[]> {
+    const { data } = await apiClient.get('/address/districts', { params: { province_id: provinceId } });
+    return data.data ?? [];
   },
   async getWards(districtCode: string): Promise<AdministrativeUnit[]> {
     const { data } = await apiClient.get('/address/wards', { params: { district_code: districtCode } });
-    return data;
+    return data.data ?? [];
   },
   async getBankInfo(): Promise<BankInfo> {
     const { data } = await apiClient.get('/payment/bank-info');
