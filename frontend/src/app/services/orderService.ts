@@ -269,6 +269,10 @@ export const adminService = {
     const { data } = await apiClient.get('/admin/reports/inventory');
     return data;
   },
+  async getDashboard(params: { from: string; to: string }) {
+    const { data } = await apiClient.get('/admin/reports/dashboard', { params });
+    return data;
+  },
 
   async getAdminProducts(params: Record<string, string | number> = {}) {
     const { data } = await apiClient.get('/admin/products', { params });

@@ -173,6 +173,7 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('reports/summary',            [AdminReportController::class, 'summary']);
             Route::get('reports/revenue',            [AdminReportController::class, 'revenue']);
             Route::get('reports/inventory',          [AdminReportController::class, 'inventory']);
+            Route::get('reports/dashboard',          [AdminReportController::class, 'dashboard']);
         });
     });
 });

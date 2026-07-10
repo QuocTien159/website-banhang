@@ -6,9 +6,12 @@ use App\Http\Controllers\Controller;
 use App\Models\BienTheSanPham;
 use App\Models\DonHang;
 use App\Models\KhachHang;
+use App\Models\PhieuNhapKho;
 use App\Models\SanPham;
+use App\Models\YeuCauTraHang;
 use App\Support\OrderStatus;
 use App\Support\UserRole;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -17,6 +20,214 @@ class AdminReportController extends Controller
     // Chỉ đơn đã giao thành công mới được ghi nhận doanh thu; đơn đang xử lý có thể bị hủy/trả.
     private const REVENUE_STATUSES = [OrderStatus::DELIVERED];
     private const REVENUE_RETURN_STATUSES = ['received', 'completed'];
+
+    /**
+     * Operational dashboard data. Revenue is recognised only for delivered
+     * orders and is reduced by returns that have been received/completed.
+     */
+    public function dashboard(Request $request)
+    {
+        $data = $request->validate([
+            'from' => ['required', 'date'],
+            'to' => ['required', 'date', 'after_or_equal:from'],
+        ]);
+
+        $from = Carbon::parse($data['from'])->startOfDay();
+        $to = Carbon::parse($data['to'])->endOfDay();
+        if ($from->diffInDays($to) > 366) {
+            return response()->json(['message' => 'Khoảng thời gian không được vượt quá 366 ngày.'], 422);
+        }
+
+        $days = $from->copy()->startOfDay()->diffInDays($to->copy()->startOfDay()) + 1;
+        $previousTo = $from->copy()->subDay()->endOfDay();
+        $previousFrom = $previousTo->copy()->subDays($days - 1)->startOfDay();
+
+        $currentOrders = $this->ordersForRange($from, $to);
+        $previousOrders = $this->ordersForRange($previousFrom, $previousTo);
+        $currentDelivered = $currentOrders->whereIn('trang_thai', self::REVENUE_STATUSES)->values();
+        $previousDelivered = $previousOrders->whereIn('trang_thai', self::REVENUE_STATUSES)->values();
+
+        $currentCustomers = KhachHang::where('role', UserRole::CUSTOMER)
+            ->where('vai_tro', false)
+            ->whereBetween('ngay_tao', [$from, $to])
+            ->count();
+        $previousCustomers = KhachHang::where('role', UserRole::CUSTOMER)
+            ->where('vai_tro', false)
+            ->whereBetween('ngay_tao', [$previousFrom, $previousTo])
+            ->count();
+
+        $activeProducts = SanPham::where('trang_thai', 'active')
+            ->where('ngay_tao', '<=', $to)
+            ->count();
+        $previousActiveProducts = SanPham::where('trang_thai', 'active')
+            ->where('ngay_tao', '<=', $previousTo)
+            ->count();
+
+        $recentOrders = $currentOrders->sortByDesc('ngay_dat')->take(6)->map(fn (DonHang $order) => [
+            'id' => $order->ma_dh,
+            'customer' => $order->khachHang?->ten_kh ?? 'Khách hàng',
+            'created_at' => $order->ngay_dat?->toISOString(),
+            'total' => (float) $order->tong_tien,
+            'status' => $order->trang_thai,
+            'last_processed_by' => $order->xuLyGanNhat?->nguoiXuLy?->ten_kh,
+        ])->values();
+
+        $lowStock = BienTheSanPham::where('trang_thai', true)
+            ->whereColumn('so_luong_ton', '<=', 'nguong_canh_bao_ton')
+            ->count();
+        $outOfStock = BienTheSanPham::where('trang_thai', true)->where('so_luong_ton', 0)->count();
+
+        return response()->json([
+            'period' => [
+                'from' => $from->toDateString(),
+                'to' => $to->toDateString(),
+                'previous_from' => $previousFrom->toDateString(),
+                'previous_to' => $previousTo->toDateString(),
+            ],
+            'kpis' => [
+                'revenue' => $this->metric($this->netRevenueForOrders($currentDelivered), $this->netRevenueForOrders($previousDelivered)),
+                'orders' => $this->metric($currentOrders->count(), $previousOrders->count()),
+                'new_customers' => $this->metric($currentCustomers, $previousCustomers),
+                'active_products' => $this->metric($activeProducts, $previousActiveProducts),
+            ],
+            'actions' => [
+                [
+                    'key' => 'pending_orders', 'count' => $currentOrders->where('trang_thai', OrderStatus::PENDING)->count(),
+                    'label' => 'Đơn hàng chờ xác nhận', 'description' => 'Mở danh sách đơn cần xử lý', 'href' => '/admin/orders', 'priority' => 'warning',
+                ],
+                [
+                    'key' => 'pending_returns', 'count' => YeuCauTraHang::where('trang_thai', 'pending')->whereBetween('ngay_yeu_cau', [$from, $to])->count(),
+                    'label' => 'Yêu cầu trả hàng chờ xử lý', 'description' => 'Xem các yêu cầu mới', 'href' => '/admin/returns', 'priority' => 'warning',
+                ],
+                [
+                    'key' => 'pending_receipts', 'count' => PhieuNhapKho::where('trang_thai', 'pending')->whereBetween('ngay_tao', [$from, $to])->count(),
+                    'label' => 'Phiếu nhập kho chờ duyệt', 'description' => 'Kiểm tra và phê duyệt phiếu nhập', 'href' => '/admin/stock-receipts', 'priority' => 'info',
+                ],
+                [
+                    'key' => 'low_stock', 'count' => $lowStock, 'secondary_count' => $outOfStock,
+                    'label' => 'SKU sắp hết hoặc hết hàng', 'description' => 'Kiểm tra mức tồn kho hiện tại', 'href' => '/admin/stock-alerts', 'priority' => $outOfStock > 0 ? 'danger' : 'warning',
+                ],
+            ],
+            'charts' => [
+                'revenue_and_completed_orders' => $this->chartSeries($currentDelivered, $from, $to),
+                'revenue_by_category' => $this->revenueByCategory($currentDelivered),
+            ],
+            'recent_orders' => $recentOrders,
+            'top_products' => $this->topProducts($currentDelivered),
+            'meta' => [
+                'revenue_rule' => 'Chỉ tính đơn đã giao; trừ số tiền của hàng trả đã nhận hoặc hoàn tất.',
+                'low_stock_count' => $lowStock,
+            ],
+        ]);
+    }
+
+    private function ordersForRange(Carbon $from, Carbon $to)
+    {
+        return DonHang::with([
+            'khachHang',
+            'chiTiets.bienThe.sanPham.danhMuc',
+            'chiTiets.bienThe.sanPham.anhChinh',
+            'yeuCauTraHangs.chiTiets',
+            'xuLyGanNhat.nguoiXuLy',
+        ])->whereBetween('ngay_dat', [$from, $to])->get();
+    }
+
+    private function metric(float|int $value, float|int $previous): array
+    {
+        $change = $previous == 0 ? null : round((($value - $previous) / $previous) * 100, 1);
+
+        return [
+            'value' => $value,
+            'previous_value' => $previous,
+            'change_percent' => $change,
+            'direction' => $change === null || $change === 0 ? 'neutral' : ($change > 0 ? 'up' : 'down'),
+        ];
+    }
+
+    private function chartSeries($orders, Carbon $from, Carbon $to): array
+    {
+        $days = $from->copy()->startOfDay()->diffInDays($to->copy()->startOfDay()) + 1;
+        $mode = $days <= 2 ? 'hour' : ($days <= 31 ? 'day' : ($days <= 180 ? 'week' : 'month'));
+
+        return $orders->groupBy(function (DonHang $order) use ($mode) {
+            return match ($mode) {
+                'hour' => $order->ngay_dat->format('d/m H:00'),
+                'week' => 'Tuần '.$order->ngay_dat->isoWeek().'/'.$order->ngay_dat->format('Y'),
+                'month' => 'T'.$order->ngay_dat->format('m/Y'),
+                default => $order->ngay_dat->format('d/m'),
+            };
+        })->map(function ($bucket, string $label) {
+            return [
+                'label' => $label,
+                'revenue' => (float) $this->netRevenueForOrders($bucket),
+                'completed_orders' => $bucket->count(),
+            ];
+        })->values()->all();
+    }
+
+    private function revenueByCategory($orders): array
+    {
+        $categories = [];
+        foreach ($orders as $order) {
+            $returned = $this->returnedQuantities($order);
+            foreach ($order->chiTiets as $item) {
+                $product = $item->bienThe?->sanPham;
+                $category = $product?->danhMuc?->ten_dm ?? 'Chưa phân loại';
+                $quantity = max(0, (int) $item->so_luong - (int) ($returned[$item->ma_bien_the] ?? 0));
+                $categories[$category] = ($categories[$category] ?? 0) + ($quantity * (float) $item->don_gia);
+            }
+        }
+
+        $total = array_sum($categories);
+        $ranked = collect($categories)->sortDesc()->take(5);
+        $other = max(0, $total - $ranked->sum());
+        if ($other > 0) $ranked->put('Khác', $other);
+
+        return $ranked->map(fn ($revenue, $name) => [
+            'name' => $name,
+            'revenue' => (float) $revenue,
+            'percent' => $total > 0 ? round(($revenue / $total) * 100, 1) : 0,
+        ])->values()->all();
+    }
+
+    private function topProducts($orders): array
+    {
+        $products = [];
+        foreach ($orders as $order) {
+            $returned = $this->returnedQuantities($order);
+            foreach ($order->chiTiets as $item) {
+                $variant = $item->bienThe;
+                $product = $variant?->sanPham;
+                if (!$product) continue;
+                $quantity = max(0, (int) $item->so_luong - (int) ($returned[$item->ma_bien_the] ?? 0));
+                $id = $product->ma_sp;
+                $products[$id] ??= [
+                    'id' => $id, 'name' => $product->ten_sp, 'sku' => $variant->sku,
+                    'image' => $product->anhChinh?->url, 'sold' => 0, 'revenue' => 0,
+                    'stock' => 0,
+                ];
+                $products[$id]['sold'] += $quantity;
+                $products[$id]['revenue'] += $quantity * (float) $item->don_gia;
+            }
+        }
+
+        $stockByProduct = BienTheSanPham::whereIn('ma_sp', array_keys($products))
+            ->where('trang_thai', true)
+            ->selectRaw('ma_sp, SUM(so_luong_ton) as stock')
+            ->groupBy('ma_sp')
+            ->pluck('stock', 'ma_sp');
+        foreach ($products as &$product) {
+            $product['stock'] = (int) ($stockByProduct[$product['id']] ?? 0);
+        }
+
+        return collect($products)->filter(fn ($product) => $product['sold'] > 0)->sortByDesc('sold')->take(5)->values()->all();
+    }
+
+    private function returnedQuantities(DonHang $order): array
+    {
+        return $order->yeuCauTraHangs->whereIn('trang_thai', self::REVENUE_RETURN_STATUSES)
+            ->flatMap->chiTiets->groupBy('ma_bien_the')->map(fn ($items) => (int) $items->sum('so_luong'))->all();
+    }
 
     public function summary()
     {
