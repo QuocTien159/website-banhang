@@ -15,6 +15,10 @@ interface AuthResponse {
   token: string;
 }
 
+interface GoogleExchangeResponse extends AuthResponse {
+  return_to: string;
+}
+
 const TOKEN_KEY = 'auth_token';
 const USER_KEY = 'auth_user';
 
@@ -43,6 +47,20 @@ export const authService = {
       email,
       mat_khau,
     });
+    this.clearAuth();
+    localStorage.setItem(TOKEN_KEY, data.token);
+    localStorage.setItem(USER_KEY, JSON.stringify(data.user));
+    return data;
+  },
+
+  googleLoginUrl(returnTo = '/'): string {
+    const apiBase = (import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000/api').replace(/\/$/, '');
+    const safeReturnTo = returnTo.startsWith('/') && !returnTo.startsWith('//') ? returnTo : '/';
+    return `${apiBase}/auth/google?return_to=${encodeURIComponent(safeReturnTo)}`;
+  },
+
+  async completeGoogleLogin(code: string): Promise<GoogleExchangeResponse> {
+    const { data } = await apiClient.post<GoogleExchangeResponse>('/auth/google/exchange', { code });
     this.clearAuth();
     localStorage.setItem(TOKEN_KEY, data.token);
     localStorage.setItem(USER_KEY, JSON.stringify(data.user));

@@ -20,7 +20,7 @@ class KhachHang extends Authenticatable
     public static string $idPrefix = 'KH';
 
     protected $fillable = [
-        'ma_kh', 'ten_kh', 'email', 'mat_khau',
+        'ma_kh', 'ten_kh', 'email', 'google_id', 'google_avatar', 'google_linked_at', 'mat_khau',
         'dien_thoai', 'vai_tro', 'role', 'trang_thai', 'ngay_tao',
     ];
 
@@ -30,6 +30,7 @@ class KhachHang extends Authenticatable
         'vai_tro' => 'boolean',
         'trang_thai' => 'boolean',
         'ngay_tao' => 'datetime',
+        'google_linked_at' => 'datetime',
     ];
 
     public function getAuthPassword(): string

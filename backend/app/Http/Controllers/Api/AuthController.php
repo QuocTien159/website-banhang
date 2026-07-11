@@ -6,11 +6,121 @@ use App\Http\Controllers\Controller;
 use App\Models\KhachHang;
 use App\Support\UserRole;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use Laravel\Socialite\Facades\Socialite;
 
 class AuthController extends Controller
 {
+    public function redirectToGoogle(Request $request)
+    {
+        if (!$this->googleConfigured()) {
+            return $this->redirectGoogleError('configuration');
+        }
+
+        $request->session()->put('google_login_return_to', $this->safeReturnTo($request->query('return_to')));
+
+        return Socialite::driver('google')
+            ->scopes(['openid', 'profile', 'email'])
+            ->with(['access_type' => 'online', 'prompt' => 'select_account'])
+            ->redirect();
+    }
+
+    public function handleGoogleCallback(Request $request)
+    {
+        if ($request->query('error')) {
+            return $this->redirectGoogleError($request->query('error') === 'access_denied' ? 'cancelled' : 'provider');
+        }
+        if (!$this->googleConfigured()) {
+            return $this->redirectGoogleError('configuration');
+        }
+
+        try {
+            $googleUser = Socialite::driver('google')->user();
+        } catch (\Throwable) {
+            return $this->redirectGoogleError('provider');
+        }
+
+        $email = mb_strtolower(trim((string) $googleUser->getEmail()));
+        $googleId = (string) $googleUser->getId();
+        $emailVerified = (bool) ($googleUser->user['email_verified'] ?? false);
+        if (!$googleId || !filter_var($email, FILTER_VALIDATE_EMAIL) || !$emailVerified) {
+            return $this->redirectGoogleError('email_not_verified');
+        }
+
+        try {
+            $user = DB::transaction(function () use ($googleId, $email, $googleUser) {
+                $user = KhachHang::where('google_id', $googleId)->lockForUpdate()->first();
+                if ($user && mb_strtolower($user->email) !== $email) {
+                    throw ValidationException::withMessages(['google' => ['Tài khoản Google không khớp với email đã liên kết.']]);
+                }
+
+                if (!$user) {
+                    $user = KhachHang::where('email', $email)->lockForUpdate()->first();
+                    if ($user) {
+                        if ($user->google_id && $user->google_id !== $googleId) {
+                            throw ValidationException::withMessages(['google' => ['Email này đã liên kết với một tài khoản Google khác.']]);
+                        }
+                        $user->update([
+                            'google_id' => $googleId,
+                            'google_avatar' => $googleUser->getAvatar(),
+                            'google_linked_at' => now(),
+                        ]);
+                    } else {
+                        $user = KhachHang::create([
+                            'ten_kh' => Str::limit(trim((string) $googleUser->getName()) ?: Str::before($email, '@'), 50, ''),
+                            'email' => $email,
+                            'google_id' => $googleId,
+                            'google_avatar' => $googleUser->getAvatar(),
+                            'google_linked_at' => now(),
+                            'mat_khau' => Hash::make(Str::random(64)),
+                            'vai_tro' => false,
+                            'role' => UserRole::CUSTOMER,
+                            'trang_thai' => true,
+                            'ngay_tao' => now(),
+                        ]);
+                        \App\Models\GioHang::create(['ma_kh' => $user->ma_kh]);
+                    }
+                }
+
+                if (!$user->trang_thai) {
+                    throw ValidationException::withMessages(['google' => ['Tài khoản của bạn đã bị khóa.']]);
+                }
+
+                // Existing staff/admin accounts keep their current role; only new OAuth accounts are customers.
+                $user->tokens()->delete();
+                $token = $user->createToken('auth_token')->plainTextToken;
+                return compact('user', 'token');
+            });
+        } catch (ValidationException $exception) {
+            return $this->redirectGoogleError($exception->errors()['google'][0] === 'Tài khoản của bạn đã bị khóa.' ? 'account_locked' : 'account_mismatch');
+        } catch (\Throwable) {
+            return $this->redirectGoogleError('provider');
+        }
+
+        $code = Str::random(64);
+        Cache::put('google_oauth_exchange:'.hash('sha256', $code), [
+            'token' => $user['token'],
+            'user' => $this->formatUser($user['user']),
+            'return_to' => $this->safeReturnTo($request->session()->pull('google_login_return_to', '/')),
+        ], now()->addMinutes(5));
+
+        return redirect(rtrim(config('services.google.frontend_url'), '/').'/auth/google/callback?code='.urlencode($code));
+    }
+
+    public function exchangeGoogleCode(Request $request)
+    {
+        $data = $request->validate(['code' => ['required', 'string', 'size:64']]);
+        $payload = Cache::pull('google_oauth_exchange:'.hash('sha256', $data['code']));
+        if (!$payload) {
+            return response()->json(['message' => 'Phiên đăng nhập Google đã hết hạn hoặc đã được sử dụng.'], 422);
+        }
+
+        return response()->json($payload);
+    }
     public function register(Request $request)
     {
         $data = $request->validate([
@@ -128,5 +238,22 @@ class AuthController extends Controller
             'status'    => $user->trang_thai,
             'join_date' => $user->ngay_tao?->format('Y-m-d'),
         ];
+    }
+
+    private function googleConfigured(): bool
+    {
+        return filled(config('services.google.client_id'))
+            && filled(config('services.google.client_secret'))
+            && filled(config('services.google.redirect'));
+    }
+
+    private function safeReturnTo(?string $value): string
+    {
+        return is_string($value) && str_starts_with($value, '/') && !str_starts_with($value, '//') ? $value : '/';
+    }
+
+    private function redirectGoogleError(string $error): \Illuminate\Http\RedirectResponse
+    {
+        return redirect(rtrim(config('services.google.frontend_url'), '/').'/auth/google/callback?error='.urlencode($error));
     }
 }

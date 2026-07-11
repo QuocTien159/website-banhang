@@ -31,6 +31,7 @@ import { AdminStockAlerts } from './components/admin/AdminStockAlerts';
 import { AdminReturns } from './components/admin/AdminReturns';
 import { AdminPaymentShippingSettings } from './components/admin/AdminPaymentShippingSettings';
 import { AdminStaff } from './components/admin/AdminStaff';
+import { GoogleAuthCallbackPage } from './components/user/GoogleAuthCallbackPage';
 
 export const router = createBrowserRouter([
   {
@@ -59,6 +60,10 @@ export const router = createBrowserRouter([
   {
     path: '/register',
     Component: RegisterPage,
+  },
+  {
+    path: '/auth/google/callback',
+    Component: GoogleAuthCallbackPage,
   },
   {
     path: '/admin',

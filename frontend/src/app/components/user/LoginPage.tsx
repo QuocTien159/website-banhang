@@ -14,6 +14,7 @@ export function LoginPage() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState('');
 
   const from = (location.state as { from?: string })?.from || '/';
@@ -37,6 +38,11 @@ export function LoginPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleGoogleLogin = () => {
+    setGoogleLoading(true);
+    window.location.assign(authService.googleLoginUrl(from));
   };
 
   return (
@@ -112,6 +118,12 @@ export function LoginPage() {
               {loading ? 'Đang xác thực...' : 'Đăng nhập'}
             </Button>
           </form>
+
+          <div className="my-6 flex items-center gap-3 text-xs text-gray-400"><span className="h-px flex-1 bg-gray-200" />hoặc<span className="h-px flex-1 bg-gray-200" /></div>
+          <Button type="button" variant="outline" onClick={handleGoogleLogin} disabled={loading || googleLoading} className="h-11 w-full border-gray-200 bg-white text-sm font-semibold hover:bg-gray-50">
+            <span className="grid size-5 place-items-center rounded-full bg-white font-bold text-[#4285f4]">G</span>
+            {googleLoading ? 'Đang chuyển đến Google...' : 'Tiếp tục với Google'}
+          </Button>
 
           <p className="text-sm text-center text-gray-500 mt-6 font-medium">
             Chưa có tài khoản?{' '}

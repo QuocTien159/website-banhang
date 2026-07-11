@@ -36,6 +36,7 @@ use App\Support\UserRole;
 Route::prefix('auth')->group(function () {
     Route::post('register', [AuthController::class, 'register']);
     Route::post('login',    [AuthController::class, 'login']);
+    Route::post('google/exchange', [AuthController::class, 'exchangeGoogleCode']);
 });
 
 // Products (public read)
