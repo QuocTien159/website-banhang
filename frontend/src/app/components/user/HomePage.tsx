@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router';
-import { ArrowRight, Bell, Star, Shield, Truck, RefreshCw, Headphones, X } from 'lucide-react';
+import { ArrowRight, Bell, Star, Shield, Truck, RefreshCw, Headphones, Trophy, X } from 'lucide-react';
 import { productService, type ApiProduct } from '../../services/productService';
 import { Button } from '../ui/button';
 import { ImageWithFallback } from '../figma/ImageWithFallback';
 import { commerceService, type Announcement } from '../../services/commerceService';
+import { toast } from 'sonner';
 
 const formatPrice = (p: number) =>
   new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(p);
@@ -26,6 +27,7 @@ export function HomePage() {
   const [loading, setLoading] = useState(true);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [showAnnouncements, setShowAnnouncements] = useState(false);
+  const [homepagePromotion, setHomepagePromotion] = useState<any>(null);
 
   useEffect(() => {
     // Load featured products, newest, and categories in parallel
@@ -46,6 +48,7 @@ export function HomePage() {
       setAnnouncements(items);
       if (items.length > 0) setShowAnnouncements(true);
     }).catch(() => setAnnouncements([]));
+    commerceService.homepagePromotion().then(setHomepagePromotion).catch(() => setHomepagePromotion(null));
   }, []);
 
   return (
@@ -167,6 +170,7 @@ export function HomePage() {
                       {new Date(announcement.published_at).toLocaleString('vi-VN')}
                     </time>
                   </div>
+                  {announcement.cover_image && <ImageWithFallback src={announcement.cover_image.banner_url ?? announcement.cover_image.detail_url ?? ''} alt={announcement.title} className="mb-4 aspect-video w-full rounded-xl object-cover" />}
                   <p className="text-sm sm:text-base leading-7 whitespace-pre-line">{announcement.content}</p>
                   {announcement.images?.length > 0 && (
                     <div className="mt-4 space-y-4">
@@ -345,27 +349,42 @@ export function HomePage() {
         </div>
       </section>
 
-      {/* Promo Banner */}
-      <section className="max-w-7xl mx-auto px-4 pb-12">
-        <div
-          className="rounded-2xl overflow-hidden relative h-48 flex items-center"
-          style={{ background: 'linear-gradient(135deg, #030213 0%, #1a1a3e 50%, #2d1b00 100%)' }}
-        >
-          <div className="px-8 md:px-12 relative z-10">
-            <div className="inline-block px-3 py-1 rounded-full text-xs text-white mb-3" style={{ backgroundColor: '#ea5c21' }}>
-              ƯU ĐÃI ĐẶC BIỆT
+      {homepagePromotion && (
+        <section className="max-w-7xl mx-auto px-4 pb-12">
+          <div className="relative min-h-60 overflow-hidden rounded-2xl bg-[#030213] text-white">
+            <div className="absolute inset-0 bg-gradient-to-r from-[#09072c] via-[#10103f] to-[#2d1a08]" />
+            <div className="absolute -right-12 top-1/2 size-64 -translate-y-1/2 rounded-full bg-orange-500/10 blur-3xl" />
+            <Trophy
+              aria-hidden="true"
+              className="absolute right-10 top-1/2 size-28 -translate-y-1/2 text-orange-400/20 md:right-20 md:size-36"
+              strokeWidth={1.25}
+            />
+
+            <div className="relative z-10 max-w-2xl px-8 py-8 md:px-12 md:py-9">
+              <span className="mb-3 inline-block rounded-full bg-orange-600 px-3 py-1 text-xs font-medium">
+                {homepagePromotion.label}
+              </span>
+              <h3 className="mb-2 text-2xl font-semibold md:text-[28px]">{homepagePromotion.title}</h3>
+              <p className="mb-4 max-w-lg text-sm text-gray-200 md:text-base">
+                {homepagePromotion.description}{' '}
+                <button
+                  type="button"
+                  className="font-semibold text-white underline decoration-orange-400 underline-offset-4"
+                  onClick={async () => {
+                    await navigator.clipboard.writeText(homepagePromotion.voucher.code);
+                    toast.success('Đã sao chép mã giảm giá.');
+                  }}
+                >
+                  {homepagePromotion.voucher.code}
+                </button>
+              </p>
+              <Button size="sm" onClick={() => navigate(homepagePromotion.cta_url)} className="bg-orange-600 hover:bg-orange-700">
+                {homepagePromotion.cta_text}
+              </Button>
             </div>
-            <h3 className="text-white mb-2" style={{ fontSize: '1.4rem' }}>
-              Giảm <span style={{ color: '#ea5c21' }}>20%</span> cho đơn hàng đầu tiên
-            </h3>
-            <p className="text-gray-400 text-sm mb-4">Nhập mã <strong className="text-white">SPORT20</strong> khi thanh toán</p>
-            <Button size="sm" onClick={() => navigate('/products')} className="text-white" style={{ backgroundColor: '#ea5c21', borderColor: '#ea5c21' }}>
-              Mua ngay
-            </Button>
           </div>
-          <div className="absolute right-0 bottom-0 text-[120px] opacity-10 select-none pointer-events-none pr-8">🏆</div>
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* Newest Products */}
       <section className="max-w-7xl mx-auto px-4 pb-16">

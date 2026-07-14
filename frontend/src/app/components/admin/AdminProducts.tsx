@@ -13,6 +13,7 @@ import { useAuth } from '../../store/AppContext';
 import { ImageWithFallback } from '../figma/ImageWithFallback';
 import { Button } from '../ui/button';
 import { validateImageFiles } from '../../utils/imageUpload';
+import { ImageCropDialog, type ImageCrop } from '../ui/ImageCropDialog';
 
 const formatPrice = (price: number) =>
   new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(price);
@@ -64,6 +65,8 @@ export function AdminProducts() {
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [cropQueue, setCropQueue] = useState<File[]>([]);
+  const [cropSource, setCropSource] = useState<string | null>(null);
 
   const selectedCategory = categories.find((category) => category.id === form.category_id);
   const generatorAttributes = selectedCategory
@@ -205,6 +208,20 @@ export function AdminProducts() {
     await loadProducts();
   };
 
+  const startCropQueue = async (files: File[]) => {
+    try { await validateImageFiles(files, 'product'); setUploading(true); setCropQueue(files); setCropSource(URL.createObjectURL(files[0])); }
+    catch (error: any) { toast.error(error.message); }
+  };
+  const confirmCrop = async (crop: ImageCrop) => {
+    const file = cropQueue[0]; if (!file) return;
+    try {
+      const uploaded = await adminService.uploadProductImages([file]);
+      setForm((current) => ({ ...current, images: [...current.images, ...uploaded.map((image, index) => ({ ...image, crop, is_primary: current.images.length === 0 && index === 0 }))] }));
+      URL.revokeObjectURL(cropSource!);
+      const next = cropQueue.slice(1); setCropQueue(next); setCropSource(next[0] ? URL.createObjectURL(next[0]) : null); if (!next.length) setUploading(false);
+    } catch (error: any) { toast.error(errorText(error)); setUploading(false); setCropQueue([]); setCropSource(null); }
+  };
+
   return (
     <div className="space-y-5">
       <div className="flex items-start justify-between gap-4">
@@ -296,12 +313,7 @@ export function AdminProducts() {
                 <div className="flex justify-between mb-4"><div><h4 className="font-semibold">2. Hình ảnh</h4><p className="text-xs text-muted-foreground">JPG, PNG hoặc WebP; tối đa 5 MB, kích thước từ 800×800 px.</p></div>
                   <label className="cursor-pointer"><input type="file" accept="image/jpeg,image/png,image/webp" multiple className="hidden" onChange={async (e) => {
                     const files = Array.from(e.target.files ?? []); if (!files.length) return;
-                    setUploading(true);
-                    try {
-                      await validateImageFiles(files, 'product');
-                      const uploaded = await adminService.uploadProductImages(files);
-                      setForm((current) => ({ ...current, images: [...current.images, ...uploaded.map((image, index) => ({ ...image, is_primary: current.images.length === 0 && index === 0 }))] }));
-                    } catch (error: any) { toast.error(errorText(error)); } finally { setUploading(false); e.target.value = ''; }
+                    await startCropQueue(files); e.target.value = '';
                   }} /><span className="inline-flex items-center px-3 py-2 border rounded-lg text-sm">{uploading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <ImagePlus className="w-4 h-4 mr-2" />}Tải ảnh</span></label>
                 </div>
                 {firstFieldError('images') && <p className="text-sm text-red-600 mb-3">{firstFieldError('images')}</p>}
@@ -379,6 +391,7 @@ export function AdminProducts() {
           </div>
         </div>
       )}
+      {cropSource && <ImageCropDialog image={cropSource} aspect={1} title="Crop ảnh sản phẩm" onCancel={() => { URL.revokeObjectURL(cropSource); setCropSource(null); setCropQueue([]); setUploading(false); }} onConfirm={confirmCrop} />}
     </div>
   );
 }

@@ -5,6 +5,7 @@ import { adminCommerceService } from '../../services/commerceService';
 import { Button } from '../ui/button';
 import { ImageWithFallback } from '../figma/ImageWithFallback';
 import { validateImageFiles } from '../../utils/imageUpload';
+import { ImageCropDialog, type ImageCrop } from '../ui/ImageCropDialog';
 
 interface AnnouncementImage {
   id?: string;
@@ -12,6 +13,9 @@ interface AnnouncementImage {
   original_url?: string | null;
   thumbnail_url?: string | null;
   announcement_url?: string | null;
+  banner_url?: string | null;
+  detail_url?: string | null;
+  crop?: { x: number; y: number; width: number; height: number; rotation: number };
   width?: number | null;
   height?: number | null;
   path?: string;
@@ -25,6 +29,7 @@ interface AnnouncementForm {
   status: 'draft' | 'published' | 'hidden';
   published_at: string;
   images: AnnouncementImage[];
+  cover_image?: AnnouncementImage | null;
 }
 
 const emptyForm = (): AnnouncementForm => ({
@@ -45,6 +50,8 @@ export function AdminAnnouncements() {
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [coverFile, setCoverFile] = useState<File | null>(null);
+  const [coverCropSource, setCoverCropSource] = useState<string | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -84,6 +91,7 @@ export function AdminAnnouncements() {
       toast.error(errorMessage(error));
     } finally { setSaving(false); }
   };
+  const confirmCoverCrop = async (crop: ImageCrop) => { if (!coverFile) return; setUploading(true); try { const [image] = await adminCommerceService.announcements.uploadImages([coverFile]); setForm({ ...form, cover_image: { ...image, crop } }); } catch (error: any) { toast.error(errorMessage(error)); } finally { URL.revokeObjectURL(coverCropSource!); setCoverCropSource(null); setCoverFile(null); setUploading(false); } };
 
   return (
     <div className="space-y-5">
@@ -119,6 +127,8 @@ export function AdminAnnouncements() {
         <label className="text-sm block">Nội dung *
           <textarea value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} rows={6} className="mt-1 w-full border rounded-lg p-3 resize-y" />
         </label>
+
+        <div className="border-t pt-4"><div className="mb-3 flex items-center justify-between"><div><p className="text-sm font-medium">Ảnh bìa thông báo</p><p className="text-xs text-muted-foreground">Crop 16:9, độc lập với ảnh trong nội dung.</p></div><label className="cursor-pointer"><input className="hidden" type="file" accept="image/jpeg,image/png,image/webp" onChange={async (event) => { const file = event.target.files?.[0]; if (!file) return; try { await validateImageFiles([file], 'announcement'); setCoverFile(file); setCoverCropSource(URL.createObjectURL(file)); } catch (error: any) { toast.error(error.message); } finally { event.target.value = ''; } }} /><span className="inline-flex items-center border rounded-lg px-3 py-2 text-sm"><ImagePlus className="mr-2 size-4" />{form.cover_image ? 'Thay ảnh bìa' : 'Tải ảnh bìa'}</span></label></div>{form.cover_image && <div className="relative max-w-md"><ImageWithFallback src={form.cover_image.banner_url ?? form.cover_image.detail_url ?? form.cover_image.url} alt="Ảnh bìa" className="aspect-video w-full rounded-lg object-cover" /><button className="absolute right-2 top-2 rounded bg-white px-2 py-1 text-xs text-red-600" onClick={() => setForm({ ...form, cover_image: null })}>Xóa</button></div>}</div>
 
         <div>
           <div className="flex items-center justify-between mb-3">
@@ -180,13 +190,14 @@ export function AdminAnnouncements() {
               <div className="flex-1 min-w-0"><div className="flex justify-between gap-3"><h3 className="font-medium">{item.title}</h3><span className="text-xs uppercase">{item.status}</span></div>
                 <p className="text-sm text-muted-foreground line-clamp-2 mt-1">{item.content}</p><p className="text-xs text-muted-foreground mt-2">{item.images?.length ?? 0} ảnh · {item.published_at ? new Date(item.published_at).toLocaleString('vi-VN') : 'Chưa đăng'}</p></div>
               <div className="flex items-start">
-                <button onClick={() => { setEditing(item.id); setForm({ title: item.title, content: item.content, type: item.type, status: item.status, published_at: item.published_at?.slice(0, 16) ?? '', images: item.images ?? [] }); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="p-2 text-blue-600"><Pencil className="w-4 h-4" /></button>
+                <button onClick={() => { setEditing(item.id); setForm({ title: item.title, content: item.content, type: item.type, status: item.status, published_at: item.published_at?.slice(0, 16) ?? '', images: item.images ?? [], cover_image: item.cover_image ?? null }); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="p-2 text-blue-600"><Pencil className="w-4 h-4" /></button>
                 <button onClick={async () => { if (!confirm(`Xóa thông báo "${item.title}"?`)) return; try { await adminCommerceService.announcements.remove(item.id); toast.success('Đã xóa thông báo.'); await load(); } catch (error: any) { toast.error(errorMessage(error)); } }} className="p-2 text-red-600"><Trash2 className="w-4 h-4" /></button>
               </div>
             </article>
           ))}
         </div>}
       </section>
+      {coverCropSource && <ImageCropDialog image={coverCropSource} aspect={16 / 9} title="Crop ảnh bìa thông báo" onCancel={() => { URL.revokeObjectURL(coverCropSource); setCoverCropSource(null); setCoverFile(null); }} onConfirm={confirmCoverCrop} />}
     </div>
   );
 }

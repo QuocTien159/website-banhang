@@ -50,12 +50,13 @@ const configItems = [
 
 const websiteItems = [
   { label: 'Khuyến mãi', href: '/admin/promotions', icon: Gift },
+  { label: 'Ưu đãi trang chủ', href: '/admin/homepage-promotion', icon: Gift },
   { label: 'Đánh giá', href: '/admin/reviews', icon: MessageSquare },
   { label: 'Khách hàng', href: '/admin/customers', icon: Users },
   { label: 'Nhân viên', href: '/admin/staff', icon: Users },
 ];
 
-const adminOnlyPaths = ['/admin', '/admin/categories', '/admin/attributes', '/admin/promotions', '/admin/announcements', '/admin/payment-shipping', '/admin/customers', '/admin/staff'];
+const adminOnlyPaths = ['/admin', '/admin/categories', '/admin/attributes', '/admin/promotions', '/admin/homepage-promotion', '/admin/announcements', '/admin/payment-shipping', '/admin/customers', '/admin/staff'];
 const staffHome = '/admin/products';
 const allItems = [...mainItems, ...inventoryItems, ...orderItems, ...configItems, ...websiteItems];
 

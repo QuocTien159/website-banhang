@@ -26,7 +26,7 @@ class AdminAnnouncementController extends Controller
         $this->abortUnlessAdmin($request);
         $data = $request->validate([
             'images' => ['required', 'array', 'min:1', 'max:10'],
-            'images.*' => ['required', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120', 'dimensions:max_width=5000,max_height=5000'],
+            'images.*' => ['required', 'image', 'mimes:jpg,jpeg,png,webp', 'max:20480', 'dimensions:max_width=10000,max_height=10000'],
         ]);
 
         foreach ($data['images'] as $image) {
@@ -92,6 +92,17 @@ class AdminAnnouncementController extends Controller
             'images.*.url' => ['required', 'string', 'max:500'],
             'images.*.path' => ['nullable', 'string', 'max:255'],
             'images.*.upload_token' => ['nullable', 'string'],
+            'cover_image' => ['nullable', 'array'],
+            'cover_image.id' => ['nullable', 'string'],
+            'cover_image.url' => ['nullable', 'string', 'max:500'],
+            'cover_image.path' => ['nullable', 'string', 'max:255'],
+            'cover_image.upload_token' => ['nullable', 'string'],
+            'cover_image.crop' => ['nullable', 'array'],
+            'cover_image.crop.x' => ['nullable', 'integer', 'min:0'],
+            'cover_image.crop.y' => ['nullable', 'integer', 'min:0'],
+            'cover_image.crop.width' => ['nullable', 'integer', 'min:1'],
+            'cover_image.crop.height' => ['nullable', 'integer', 'min:1'],
+            'cover_image.crop.rotation' => ['nullable', 'numeric', 'between:-360,360'],
         ]);
 
         $removedAssets = DB::transaction(function () use ($item, $data, $request) {
@@ -105,8 +116,23 @@ class AdminAnnouncementController extends Controller
             $assets = [];
             $keptIds = collect($data['images'] ?? [])->pluck('id')->filter()->all();
             foreach ($item->hinhAnhs()->whereNotIn('ma_anh_tb', $keptIds)->get() as $removed) {
+                if ($removed->vai_tro_anh === 'announcement_cover') continue;
                 $assets[] = [$removed->provider, $removed->cloudinary_public_id, $removed->duong_dan];
                 $removed->delete();
+            }
+
+            $existingCover = $item->hinhAnhs()->where('vai_tro_anh', 'announcement_cover')->first();
+            $coverData = $data['cover_image'] ?? null;
+            if (!$coverData && $existingCover) {
+                $assets[] = [$existingCover->provider, $existingCover->cloudinary_public_id, $existingCover->duong_dan];
+                $existingCover->delete();
+            } elseif ($coverData && empty($coverData['id'])) {
+                if ($existingCover) {
+                    $assets[] = [$existingCover->provider, $existingCover->cloudinary_public_id, $existingCover->duong_dan];
+                    $existingCover->delete();
+                }
+                $asset = $this->verifiedImageAsset($coverData, $request->user()->ma_kh);
+                HinhAnhThongBao::create($this->imagePayload($item, $asset, $coverData['crop'] ?? [], 'announcement_cover', 0));
             }
 
             foreach ($data['images'] ?? [] as $order => $imageData) {
@@ -116,12 +142,7 @@ class AdminAnnouncementController extends Controller
                 }
 
                 $asset = $this->verifiedImageAsset($imageData, $request->user()->ma_kh);
-                HinhAnhThongBao::create([
-                    'ma_tb' => $item->ma_tb, 'url' => $asset['url'], 'duong_dan' => $asset['path'] ?? null,
-                    'provider' => $asset['provider'], 'cloudinary_public_id' => $asset['public_id'] ?? null,
-                    'chieu_rong' => $asset['width'] ?? null, 'chieu_cao' => $asset['height'] ?? null,
-                    'thu_tu' => $order, 'ngay_tao' => now(),
-                ]);
+                HinhAnhThongBao::create($this->imagePayload($item, $asset, [], 'announcement_content', $order));
             }
             return $assets;
         });
@@ -154,8 +175,9 @@ class AdminAnnouncementController extends Controller
             'type' => $item->loai, 'status' => $item->trang_thai,
             'published_at' => $item->ngay_xuat_ban?->toISOString(),
             'created_at' => $item->ngay_tao?->toISOString(),
-            'images' => $item->hinhAnhs->map(function ($image) use ($media) {
-                $urls = $media->urls($image->url, $image->provider);
+            'cover_image' => $this->formatImage($item->hinhAnhs->firstWhere('vai_tro_anh', 'announcement_cover'), $media),
+            'images' => $item->hinhAnhs->where('vai_tro_anh', '!=', 'announcement_cover')->map(function ($image) use ($media) {
+                $urls = $media->urls($image->original_url ?? $image->url, $image->provider, $this->crop($image));
                 return [
                     'id' => $image->ma_anh_tb,
                     'url' => $urls['original_url'],
@@ -169,5 +191,30 @@ class AdminAnnouncementController extends Controller
                 ];
             })->values(),
         ];
+    }
+
+    private function imagePayload(ThongBao $item, array $asset, array $crop, string $role, int $order): array
+    {
+        return [
+            'ma_tb' => $item->ma_tb, 'url' => $asset['url'], 'original_url' => $asset['url'], 'duong_dan' => $asset['path'] ?? null,
+            'provider' => $asset['provider'], 'cloudinary_public_id' => $asset['public_id'] ?? null,
+            'chieu_rong' => $asset['width'] ?? null, 'chieu_cao' => $asset['height'] ?? null,
+            'kich_thuoc_byte' => $asset['bytes'] ?? null, 'dinh_dang' => $asset['format'] ?? null,
+            'crop_x' => $crop['x'] ?? null, 'crop_y' => $crop['y'] ?? null, 'crop_width' => $crop['width'] ?? null, 'crop_height' => $crop['height'] ?? null,
+            'goc_xoay' => $crop['rotation'] ?? 0, 'ty_le_khung_hinh' => $role === 'announcement_cover' ? '16:9' : null,
+            'vai_tro_anh' => $role, 'thu_tu' => $order, 'ngay_tao' => now(),
+        ];
+    }
+
+    private function formatImage(?HinhAnhThongBao $image, CloudinaryMediaService $media): ?array
+    {
+        if (!$image) return null;
+        $urls = $media->urls($image->original_url ?? $image->url, $image->provider, $this->crop($image));
+        return ['id' => $image->ma_anh_tb, 'url' => $urls['original_url'], ...$urls, 'path' => $image->duong_dan, 'order' => $image->thu_tu];
+    }
+
+    private function crop(HinhAnhThongBao $image): array
+    {
+        return ['x' => $image->crop_x, 'y' => $image->crop_y, 'width' => $image->crop_width, 'height' => $image->crop_height, 'rotation' => $image->goc_xoay];
     }
 }

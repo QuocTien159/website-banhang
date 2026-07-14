@@ -24,6 +24,8 @@ class CloudinaryMediaService
                 'public_id' => null,
                 'width' => $file->dimensions()[0] ?? null,
                 'height' => $file->dimensions()[1] ?? null,
+                'bytes' => $file->getSize(),
+                'format' => $file->extension(),
                 'upload_token' => null,
             ];
         }
@@ -59,6 +61,8 @@ class CloudinaryMediaService
             'public_id' => $asset['public_id'],
             'width' => $asset['width'] ?? null,
             'height' => $asset['height'] ?? null,
+            'bytes' => $asset['bytes'] ?? null,
+            'format' => $asset['format'] ?? null,
             'expires_at' => now()->addHours(2)->timestamp,
         ];
 
@@ -69,6 +73,8 @@ class CloudinaryMediaService
             'public_id' => $payload['public_id'],
             'width' => $payload['width'],
             'height' => $payload['height'],
+            'bytes' => $payload['bytes'],
+            'format' => $payload['format'],
             'upload_token' => Crypt::encryptString(json_encode($payload)),
         ];
     }
@@ -106,32 +112,51 @@ class CloudinaryMediaService
         if ($path) Storage::disk('public')->delete($path);
     }
 
-    public function url(?string $url, ?string $provider, string $context): ?string
+    public function url(?string $url, ?string $provider, string $context, array $crop = []): ?string
     {
         if (!$url || $provider !== 'cloudinary') return $url;
+        $cropTransformation = $this->cropTransformation($crop);
+        $hasCrop = $cropTransformation !== null;
         $transformation = match ($context) {
             // Thumbnails have a fixed visual slot. Uploaded product images are at least 800px.
             'thumbnail' => 'f_auto,q_auto:good,c_fill,g_auto,w_240,h_240',
             // c_limit only downscales and preserves the source aspect ratio.
-            'list' => 'f_auto,q_auto:good,c_limit,w_640,h_640',
+            'list' => $hasCrop ? 'f_auto,q_auto:good,c_fill,w_640,h_640' : 'f_auto,q_auto:good,c_limit,w_640,h_640',
+            'banner' => $hasCrop ? 'f_auto,q_auto:good,c_fill,w_1600,h_900' : 'f_auto,q_auto:good,c_limit,w_1600',
             'announcement' => 'f_auto,q_auto:good,c_limit,w_1600',
             default => 'f_auto,q_auto:good,c_limit,w_1600',
         };
-        return str_replace('/image/upload/', '/image/upload/'.$transformation.'/', $url);
+        $segments = array_filter([$cropTransformation, $transformation]);
+        return str_replace('/image/upload/', '/image/upload/'.implode('/', $segments).'/', $url);
     }
 
     /**
      * Keep the persisted Cloudinary secure_url untouched and expose derivatives per UI context.
      */
-    public function urls(?string $url, ?string $provider): array
+    public function urls(?string $url, ?string $provider, array $crop = []): array
     {
         return [
             'original_url' => $url,
-            'thumbnail_url' => $this->url($url, $provider, 'thumbnail'),
-            'list_url' => $this->url($url, $provider, 'list'),
-            'detail_url' => $this->url($url, $provider, 'detail'),
-            'announcement_url' => $this->url($url, $provider, 'announcement'),
+            'thumbnail_url' => $this->url($url, $provider, 'thumbnail', $crop),
+            'list_url' => $this->url($url, $provider, 'list', $crop),
+            'detail_url' => $this->url($url, $provider, 'detail', $crop),
+            'announcement_url' => $this->url($url, $provider, 'announcement', $crop),
+            'banner_url' => $this->url($url, $provider, 'banner', $crop),
         ];
+    }
+
+    private function cropTransformation(array $crop): ?string
+    {
+        $width = (int) ($crop['width'] ?? $crop['crop_width'] ?? 0);
+        $height = (int) ($crop['height'] ?? $crop['crop_height'] ?? 0);
+        if ($width < 1 || $height < 1) return null;
+
+        $x = max(0, (int) ($crop['x'] ?? $crop['crop_x'] ?? 0));
+        $y = max(0, (int) ($crop['y'] ?? $crop['crop_y'] ?? 0));
+        $rotation = (float) ($crop['rotation'] ?? $crop['goc_xoay'] ?? 0);
+        $parts = ["c_crop,x_{$x},y_{$y},w_{$width},h_{$height}"];
+        if ($rotation != 0.0) $parts[] = 'a_'.rtrim(rtrim(number_format($rotation, 2, '.', ''), '0'), '.');
+        return implode('/', $parts);
     }
 
     private function enabled(): bool

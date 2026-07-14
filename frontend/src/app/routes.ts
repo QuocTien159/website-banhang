@@ -22,6 +22,7 @@ import { AdminAttributes } from './components/admin/AdminAttributes';
 import { WishlistPage } from './components/user/WishlistPage';
 import { ReviewsPage } from './components/user/ReviewsPage';
 import { AdminPromotions } from './components/admin/AdminPromotions';
+import { AdminHomepagePromotion } from './components/admin/AdminHomepagePromotion';
 import { AdminReviews } from './components/admin/AdminReviews';
 import { AdminAnnouncements } from './components/admin/AdminAnnouncements';
 import { AdminStockImport } from './components/admin/AdminStockImport';
@@ -78,6 +79,7 @@ export const router = createBrowserRouter([
       { path: 'stock-movements', Component: AdminStockMovements },
       { path: 'stock-alerts', Component: AdminStockAlerts },
       { path: 'promotions', Component: AdminPromotions },
+      { path: 'homepage-promotion', Component: AdminHomepagePromotion },
       { path: 'reviews', Component: AdminReviews },
       { path: 'announcements', Component: AdminAnnouncements },
       { path: 'orders', Component: AdminOrders },

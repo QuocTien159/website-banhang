@@ -16,10 +16,12 @@ use App\Http\Controllers\Api\Admin\AdminReportController;
 use App\Http\Controllers\Api\Admin\AdminCategoryController;
 use App\Http\Controllers\Api\PromotionController;
 use App\Http\Controllers\Api\AnnouncementController;
+use App\Http\Controllers\Api\HomepagePromotionController;
 use App\Http\Controllers\Api\ReturnRequestController;
 use App\Http\Controllers\Api\Admin\AdminPromotionController;
 use App\Http\Controllers\Api\Admin\AdminReviewController;
 use App\Http\Controllers\Api\Admin\AdminAnnouncementController;
+use App\Http\Controllers\Api\Admin\AdminHomepagePromotionController;
 use App\Http\Controllers\Api\Admin\AdminAttributeController;
 use App\Http\Controllers\Api\Admin\AdminInventoryController;
 use App\Http\Controllers\Api\Admin\AdminReturnRequestController;
@@ -45,6 +47,7 @@ Route::get('products/{id}',        [ProductController::class, 'show']);
 Route::get('products/{id}/reviews',[ReviewController::class, 'index']);
 Route::get('categories',           [CategoryController::class, 'index']);
 Route::get('announcements',        [AnnouncementController::class, 'index']);
+Route::get('homepage-promotion',   [HomepagePromotionController::class, 'show']);
 Route::post('payment/payos-webhook', [PaymentController::class, 'payosWebhook']);
 
 /*
@@ -153,6 +156,9 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::put('inventory/receipts/{id}/reject', [AdminInventoryController::class, 'rejectReceipt']);
 
             Route::apiResource('promotions', AdminPromotionController::class)->except(['show']);
+            Route::get('homepage-promotion', [AdminHomepagePromotionController::class, 'show']);
+            Route::get('homepage-promotion/vouchers', [AdminHomepagePromotionController::class, 'voucherOptions']);
+            Route::put('homepage-promotion', [AdminHomepagePromotionController::class, 'update']);
             Route::put('reviews/{id}/reply', [AdminReviewController::class, 'reply']);
             Route::delete('reviews/{id}/reply', [AdminReviewController::class, 'deleteReply']);
             Route::delete('reviews/{id}', [AdminReviewController::class, 'destroy']);

@@ -118,6 +118,7 @@ export interface AdminImage {
   public_id?: string | null;
   width?: number | null;
   height?: number | null;
+  crop?: { x: number; y: number; width: number; height: number; rotation: number };
   path?: string;
   upload_token?: string | null;
   provider?: 'cloudinary' | 'local';

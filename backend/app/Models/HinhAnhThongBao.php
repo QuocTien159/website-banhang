@@ -16,7 +16,7 @@ class HinhAnhThongBao extends Model
     public $timestamps = false;
     public static string $idPrefix = 'AT';
 
-    protected $fillable = ['ma_anh_tb', 'ma_tb', 'url', 'duong_dan', 'provider', 'cloudinary_public_id', 'chieu_rong', 'chieu_cao', 'thu_tu', 'ngay_tao'];
+    protected $fillable = ['ma_anh_tb', 'ma_tb', 'url', 'original_url', 'duong_dan', 'provider', 'cloudinary_public_id', 'chieu_rong', 'chieu_cao', 'kich_thuoc_byte', 'dinh_dang', 'crop_x', 'crop_y', 'crop_width', 'crop_height', 'goc_xoay', 'ty_le_khung_hinh', 'vai_tro_anh', 'thu_tu', 'ngay_tao'];
     protected $casts = ['thu_tu' => 'integer', 'ngay_tao' => 'datetime'];
 
     public function thongBao()

@@ -25,4 +25,11 @@ class MaKhuyenMai extends Model
         if ($this->giam_toi_da !== null) $discount = min($discount, (float) $this->giam_toi_da);
         return round(min($discount, $subtotal), 2);
     }
+
+    public function isAvailableForHomepage(): bool
+    {
+        return $this->trang_thai
+            && now()->between($this->bat_dau, $this->ket_thuc)
+            && ($this->gioi_han_su_dung === null || $this->da_su_dung < $this->gioi_han_su_dung);
+    }
 }

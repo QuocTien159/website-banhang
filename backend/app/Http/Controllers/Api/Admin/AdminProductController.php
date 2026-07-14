@@ -86,7 +86,7 @@ class AdminProductController extends Controller
         $this->abortUnlessAdmin($request);
         $data = $request->validate([
             'images' => ['required', 'array', 'min:1', 'max:8'],
-            'images.*' => ['required', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120', 'dimensions:min_width=800,min_height=800,max_width=5000,max_height=5000'],
+            'images.*' => ['required', 'image', 'mimes:jpg,jpeg,png,webp', 'max:20480', 'dimensions:min_width=800,min_height=800,max_width=10000,max_height=10000'],
         ], [
             'images.*.dimensions' => 'Ảnh sản phẩm cần tối thiểu 800 x 800 px để hiển thị rõ nét.',
         ]);
@@ -216,6 +216,12 @@ class AdminProductController extends Controller
             'images.*.url' => ['required', 'string', 'max:500'],
             'images.*.path' => ['nullable', 'string', 'max:255'],
             'images.*.upload_token' => ['nullable', 'string'],
+            'images.*.crop' => ['nullable', 'array'],
+            'images.*.crop.x' => ['nullable', 'integer', 'min:0'],
+            'images.*.crop.y' => ['nullable', 'integer', 'min:0'],
+            'images.*.crop.width' => ['nullable', 'integer', 'min:1'],
+            'images.*.crop.height' => ['nullable', 'integer', 'min:1'],
+            'images.*.crop.rotation' => ['nullable', 'numeric', 'between:-360,360'],
             'images.*.variant_id' => ['nullable', Rule::in($variantIds)],
             'images.*.variant_sku' => ['nullable', 'string', 'max:50'],
             'images.*.is_primary' => ['required', 'boolean'],
@@ -292,6 +298,7 @@ class AdminProductController extends Controller
                 $image->update([
                     'anh_chinh' => $imageData['is_primary'],
                     'ma_bt' => $variantId,
+                    'vai_tro_anh' => $variantId ? 'variant' : 'product',
                     'thu_tu' => $order,
                 ]);
             } else {
@@ -300,10 +307,20 @@ class AdminProductController extends Controller
                     'ma_sp' => $product->ma_sp,
                     'ma_bt' => $variantId,
                     'url' => $asset['url'],
+                    'original_url' => $asset['url'],
                     'provider' => $asset['provider'],
                     'cloudinary_public_id' => $asset['public_id'] ?? null,
                     'chieu_rong' => $asset['width'] ?? null,
                     'chieu_cao' => $asset['height'] ?? null,
+                    'kich_thuoc_byte' => $asset['bytes'] ?? null,
+                    'dinh_dang' => $asset['format'] ?? null,
+                    'crop_x' => $imageData['crop']['x'] ?? null,
+                    'crop_y' => $imageData['crop']['y'] ?? null,
+                    'crop_width' => $imageData['crop']['width'] ?? null,
+                    'crop_height' => $imageData['crop']['height'] ?? null,
+                    'goc_xoay' => $imageData['crop']['rotation'] ?? 0,
+                    'ty_le_khung_hinh' => '1:1',
+                    'vai_tro_anh' => $variantId ? 'variant' : 'product',
                     'anh_chinh' => $imageData['is_primary'],
                     'thu_tu' => $order,
                 ]);
@@ -397,7 +414,7 @@ class AdminProductController extends Controller
     private function formatSummary(SanPham $product): array
     {
         $prices = $product->bienThes->pluck('gia_ban')->map(fn ($price) => (float) $price);
-        $imageUrls = app(CloudinaryMediaService::class)->urls($product->anhChinh?->url, $product->anhChinh?->provider);
+        $imageUrls = app(CloudinaryMediaService::class)->urls($product->anhChinh?->original_url ?? $product->anhChinh?->url, $product->anhChinh?->provider, $this->crop($product->anhChinh));
         return [
             'id' => $product->ma_sp,
             'name' => $product->ten_sp,
@@ -430,7 +447,7 @@ class AdminProductController extends Controller
         return array_merge($this->formatSummary($product), [
             'description' => $product->mo_ta,
             'images' => $product->hinhAnhs->map(function (HinhAnhSanPham $image) {
-                $urls = app(CloudinaryMediaService::class)->urls($image->url, $image->provider);
+                $urls = app(CloudinaryMediaService::class)->urls($image->original_url ?? $image->url, $image->provider, $this->crop($image));
                 return [
                 'id' => $image->ma_anh,
                 // url remains the original for compatibility with the editor payload.
@@ -460,5 +477,11 @@ class AdminProductController extends Controller
                 ])->values(),
             ])->values(),
         ]);
+    }
+
+    private function crop(?HinhAnhSanPham $image): array
+    {
+        if (!$image) return [];
+        return ['x' => $image->crop_x, 'y' => $image->crop_y, 'width' => $image->crop_width, 'height' => $image->crop_height, 'rotation' => $image->goc_xoay];
     }
 }

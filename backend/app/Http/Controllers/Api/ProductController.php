@@ -131,7 +131,7 @@ class ProductController extends Controller
         $avgRating = \App\Models\DanhGia::where('ma_sp', $p->ma_sp)->where('trang_thai', 'approved')->avg('so_sao');
         $reviewCount = \App\Models\DanhGia::where('ma_sp', $p->ma_sp)->where('trang_thai', 'approved')->count();
 
-        $imageUrls = app(CloudinaryMediaService::class)->urls($p->anhChinh?->url, $p->anhChinh?->provider);
+        $imageUrls = app(CloudinaryMediaService::class)->urls($p->anhChinh?->original_url ?? $p->anhChinh?->url, $p->anhChinh?->provider, $this->crop($p->anhChinh));
 
         return [
             'id'           => $p->ma_sp,
@@ -160,7 +160,7 @@ class ProductController extends Controller
 
         $media = app(CloudinaryMediaService::class);
         $primaryImage = $p->hinhAnhs->where('anh_chinh', true)->first();
-        $imageUrls = $media->urls($primaryImage?->url, $primaryImage?->provider);
+        $imageUrls = $media->urls($primaryImage?->original_url ?? $primaryImage?->url, $primaryImage?->provider, $this->crop($primaryImage));
 
         return [
             'id'           => $p->ma_sp,
@@ -172,7 +172,7 @@ class ProductController extends Controller
             'image'        => $imageUrls['detail_url'],
             'image_urls'   => $imageUrls,
             'images'       => $p->hinhAnhs->map(function ($image) use ($media) {
-                $urls = $media->urls($image->url, $image->provider);
+                $urls = $media->urls($image->original_url ?? $image->url, $image->provider, $this->crop($image));
                 return [
                     'id' => $image->ma_anh,
                     ...$urls,
@@ -197,7 +197,7 @@ class ProductController extends Controller
                 'sku'        => $bt->sku,
                 'price'      => (float)$bt->gia_ban,
                 'stock'      => $bt->so_luong_ton,
-                'image'      => $media->urls($bt->hinhAnhs->first()?->url, $bt->hinhAnhs->first()?->provider)['detail_url'],
+                'image'      => $media->urls($bt->hinhAnhs->first()?->original_url ?? $bt->hinhAnhs->first()?->url, $bt->hinhAnhs->first()?->provider, $this->crop($bt->hinhAnhs->first()))['detail_url'],
                 'attributes' => $bt->giaTriThuocTinhs->map(fn($gt) => [
                     'name'  => $gt->thuocTinh->ten_tt,
                     'value' => $gt->gia_tri,
@@ -298,5 +298,11 @@ class ProductController extends Controller
             ->sum('ctth.so_luong');
 
         return max(0, (int) $sold - (int) $returned);
+    }
+
+    private function crop($image): array
+    {
+        if (!$image) return [];
+        return ['x' => $image->crop_x, 'y' => $image->crop_y, 'width' => $image->crop_width, 'height' => $image->crop_height, 'rotation' => $image->goc_xoay];
     }
 }

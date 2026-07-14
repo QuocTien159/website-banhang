@@ -6,6 +6,7 @@ export interface WishlistItem {
 }
 export interface Announcement {
   id: string; title: string; content: string; type: string; published_at: string;
+  cover_image?: { original_url?: string | null; banner_url?: string | null; detail_url?: string | null } | null;
   images: { id?: string; url: string; original_url?: string | null; thumbnail_url?: string | null; list_url?: string | null; detail_url?: string | null; announcement_url?: string | null; width?: number | null; height?: number | null; path?: string; order?: number }[];
 }
 export interface ReviewCandidate {
@@ -39,6 +40,7 @@ export const commerceService = {
   async wishlistStatus(productId: string): Promise<boolean> { return (await apiClient.get(`/wishlist/${productId}/status`)).data.wishlisted; },
   async validateCoupon(code: string) { return (await apiClient.post('/promotions/validate', { code })).data; },
   async announcements(): Promise<Announcement[]> { return (await apiClient.get('/announcements')).data; },
+  async homepagePromotion() { return (await apiClient.get('/homepage-promotion')).data; },
   async eligibleReviews(): Promise<ReviewCandidate[]> { return (await apiClient.get('/reviews/eligible')).data; },
   async myReviews(): Promise<MyReview[]> { return (await apiClient.get('/reviews/mine')).data; },
   async uploadReviewImages(files: File[]): Promise<string[]> {
@@ -89,6 +91,11 @@ export const adminCommerceService = {
       })).data.images as { url: string; path?: string; upload_token?: string | null }[];
     },
     deleteUploadedImage: (data: { path?: string; upload_token?: string | null }) => apiClient.delete('/admin/announcements/images/uploaded', { data }),
+  },
+  homepagePromotion: {
+    show: () => apiClient.get('/admin/homepage-promotion').then((r) => r.data),
+    vouchers: () => apiClient.get('/admin/homepage-promotion/vouchers').then((r) => r.data),
+    update: (data: any) => apiClient.put('/admin/homepage-promotion', data).then((r) => r.data),
   },
   returns: {
     list: (params = {}) => apiClient.get('/admin/returns', { params }).then((r) => r.data),
