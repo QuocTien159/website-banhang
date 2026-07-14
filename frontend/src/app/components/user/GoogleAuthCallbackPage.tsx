@@ -8,6 +8,7 @@ const errorMessages: Record<string, string> = {
   email_not_verified: 'Tài khoản Google cần có email đã xác minh.',
   account_locked: 'Tài khoản của bạn đã bị khóa. Vui lòng liên hệ hỗ trợ.',
   account_mismatch: 'Thông tin tài khoản Google không khớp với tài khoản đã liên kết.',
+  account_sync: 'Không thể lưu hoặc liên kết tài khoản. Vui lòng thử lại sau.',
   configuration: 'Google đăng nhập chưa được cấu hình đầy đủ.',
   provider: 'Không thể xác thực với Google. Vui lòng thử lại.',
 };

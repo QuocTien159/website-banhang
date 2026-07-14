@@ -31,6 +31,28 @@ php artisan serve
 
 API mặc định chạy tại `http://localhost:8000/api`.
 
+## Đăng nhập Google
+
+Tạo OAuth Client loại **Web application** trong Google Cloud Console, sau đó thêm các biến sau vào `backend/.env`. Không commit file `.env` hoặc client secret.
+
+```env
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+GOOGLE_REDIRECT_URI=http://localhost:8000/api/auth/google/callback
+FRONTEND_URL=http://localhost:5173
+# Chỉ cần khi PHP/Windows không có CA store tin cậy:
+GOOGLE_CA_BUNDLE=
+```
+
+Đăng ký chính xác Redirect URI `http://localhost:8000/api/auth/google/callback` trong Google Cloud Console. Khi deploy, thay `localhost` bằng domain HTTPS của môi trường đó ở cả `GOOGLE_REDIRECT_URI`, `FRONTEND_URL` và Google Cloud Console. Sau khi thay đổi biến môi trường, chạy:
+
+```bash
+php artisan optimize:clear
+php artisan config:cache
+```
+
+Trên Windows, nếu PHP báo `cURL error 60`, tải CA bundle từ `https://curl.se/ca/cacert.pem` và đặt `GOOGLE_CA_BUNDLE` tới đường dẫn tuyệt đối của tệp đó. Trên server Linux có CA store chuẩn, không cần đặt biến này.
+
 ## Cấu hình thanh toán payOS
 
 Backend dùng payOS cho phương thức chuyển khoản QR. Thêm các biến sau vào file `backend/.env` trên máy/server thật, không commit file `.env`:

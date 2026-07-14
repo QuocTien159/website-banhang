@@ -33,8 +33,13 @@ class AuthController extends Controller
 
     public function handleGoogleCallback(Request $request)
     {
-        if ($request->query('error')) {
-            return $this->redirectGoogleError($request->query('error') === 'access_denied' ? 'cancelled' : 'provider');
+        $providerError = $request->query('error');
+        if ($providerError) {
+            Log::notice('Google OAuth provider rejected the authorization request.', [
+                'error' => $providerError,
+            ]);
+
+            return $this->redirectGoogleError($providerError === 'access_denied' ? 'cancelled' : 'provider');
         }
         if (!$this->googleConfigured()) {
             return $this->redirectGoogleError('configuration');
@@ -103,8 +108,13 @@ class AuthController extends Controller
             });
         } catch (ValidationException $exception) {
             return $this->redirectGoogleError($exception->errors()['google'][0] === 'Tài khoản của bạn đã bị khóa.' ? 'account_locked' : 'account_mismatch');
-        } catch (\Throwable) {
-            return $this->redirectGoogleError('provider');
+        } catch (\Throwable $exception) {
+            Log::error('Google OAuth user synchronization failed.', [
+                'exception' => $exception::class,
+                'message' => $exception->getMessage(),
+            ]);
+
+            return $this->redirectGoogleError('account_sync');
         }
 
         $code = Str::random(64);
