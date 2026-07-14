@@ -9,8 +9,10 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use GuzzleHttp\Client as GuzzleClient;
 use Laravel\Socialite\Facades\Socialite;
 
 class AuthController extends Controller
@@ -23,7 +25,7 @@ class AuthController extends Controller
 
         $request->session()->put('google_login_return_to', $this->safeReturnTo($request->query('return_to')));
 
-        return Socialite::driver('google')
+        return $this->googleDriver()
             ->scopes(['openid', 'profile', 'email'])
             ->with(['access_type' => 'online', 'prompt' => 'select_account'])
             ->redirect();
@@ -39,8 +41,12 @@ class AuthController extends Controller
         }
 
         try {
-            $googleUser = Socialite::driver('google')->user();
-        } catch (\Throwable) {
+            $googleUser = $this->googleDriver()->user();
+        } catch (\Throwable $exception) {
+            Log::warning('Google OAuth callback failed while retrieving the provider profile.', [
+                'exception' => $exception::class,
+                'message' => $exception->getMessage(),
+            ]);
             return $this->redirectGoogleError('provider');
         }
 
@@ -245,6 +251,18 @@ class AuthController extends Controller
         return filled(config('services.google.client_id'))
             && filled(config('services.google.client_secret'))
             && filled(config('services.google.redirect'));
+    }
+
+    private function googleDriver()
+    {
+        $driver = Socialite::driver('google');
+        $caBundle = config('services.google.ca_bundle');
+
+        if (is_string($caBundle) && is_file($caBundle)) {
+            $driver->setHttpClient(new GuzzleClient(['verify' => $caBundle]));
+        }
+
+        return $driver;
     }
 
     private function safeReturnTo(?string $value): string

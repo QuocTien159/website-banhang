@@ -25,6 +25,7 @@ class GoogleOAuthTest extends TestCase
             'services.google.client_secret' => 'test-secret',
             'services.google.redirect' => 'http://localhost:8000/api/auth/google/callback',
             'services.google.frontend_url' => 'http://localhost:5173',
+            'services.google.ca_bundle' => null,
         ]);
     }
 

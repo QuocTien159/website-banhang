@@ -67,6 +67,8 @@ return [
         'client_secret' => env('GOOGLE_CLIENT_SECRET'),
         'redirect' => env('GOOGLE_REDIRECT_URI'),
         'frontend_url' => env('FRONTEND_URL', 'http://localhost:5173'),
+        // Windows PHP installations may not include a current CA store. Keep TLS verification enabled.
+        'ca_bundle' => env('GOOGLE_CA_BUNDLE') ?: storage_path('certs/cacert.pem'),
     ],
 
 ];
