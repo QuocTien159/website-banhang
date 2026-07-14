@@ -109,6 +109,15 @@ export interface AdminCategory {
 export interface AdminImage {
   id?: string;
   url: string;
+  original_url?: string | null;
+  thumbnail_url?: string | null;
+  list_url?: string | null;
+  detail_url?: string | null;
+  announcement_url?: string | null;
+  provider?: string | null;
+  public_id?: string | null;
+  width?: number | null;
+  height?: number | null;
   path?: string;
   upload_token?: string | null;
   provider?: 'cloudinary' | 'local';
@@ -142,6 +151,7 @@ export interface AdminProductSummary {
   stock: number;
   variant_count: number;
   status: 'active' | 'inactive' | 'out_of_stock';
+  image_urls?: Pick<AdminImage, 'original_url' | 'thumbnail_url' | 'list_url' | 'detail_url'>;
 }
 
 export interface AdminProductDetail extends AdminProductSummary {

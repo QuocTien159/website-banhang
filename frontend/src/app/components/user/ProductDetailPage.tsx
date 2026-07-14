@@ -38,7 +38,7 @@ export function ProductDetailPage() {
         setProduct(data);
         setSelected({});
         setMyReview(null);
-        setActiveImage(data.image ?? data.images[0] ?? '');
+        setActiveImage(data.image ?? data.images[0]?.detail_url ?? '');
         if (isAuthenticated) {
           commerceService.wishlistStatus(data.id).then(setWishlisted).catch(() => {});
           commerceService.myReviews()
@@ -77,8 +77,10 @@ export function ProductDetailPage() {
   }, [product, selected, selectionComplete]);
 
   useEffect(() => {
-    if (selectedVariant?.image) setActiveImage(selectedVariant.image);
-  }, [selectedVariant?.id, selectedVariant?.image]);
+    if (!product || !selectedVariant) return;
+    const variantImage = product.images.find((image) => image.variant_id === selectedVariant.id);
+    setActiveImage(variantImage?.detail_url ?? selectedVariant.image ?? product.image ?? '');
+  }, [product, selectedVariant]);
 
   const optionAvailable = (attributeName: string, value: string) => {
     if (!product) return false;
@@ -148,20 +150,25 @@ export function ProductDetailPage() {
 
       <div className="grid md:grid-cols-2 gap-8 mb-12">
         <div>
-          <div className="aspect-square rounded-2xl overflow-hidden border border-border bg-gray-50">
-            <ImageWithFallback src={activeImage} alt={product.name} className="w-full h-full object-cover" />
-          </div>
+          <a
+            href={product.images.find((image) => image.detail_url === activeImage)?.original_url ?? activeImage}
+            target="_blank"
+            rel="noreferrer"
+            className="block aspect-square rounded-2xl overflow-hidden border border-border bg-gray-50"
+          >
+            <ImageWithFallback src={activeImage} alt={product.name} className="w-full h-full object-contain" />
+          </a>
           {product.images.length > 1 && (
             <div className="flex gap-2 mt-3">
               {product.images.map((image) => (
                 <button
-                  key={image}
-                  onClick={() => setActiveImage(image)}
+                  key={image.id}
+                  onClick={() => setActiveImage(image.detail_url ?? image.original_url ?? '')}
                   className={`w-16 h-16 rounded-lg overflow-hidden border ${
-                    activeImage === image ? 'border-orange-500' : 'border-border'
+                    activeImage === image.detail_url ? 'border-orange-500' : 'border-border'
                   }`}
                 >
-                  <ImageWithFallback src={image} alt={product.name} className="w-full h-full object-cover" />
+                  <ImageWithFallback src={image.thumbnail_url ?? image.detail_url ?? ''} alt={product.name} className="w-full h-full object-cover" />
                 </button>
               ))}
             </div>

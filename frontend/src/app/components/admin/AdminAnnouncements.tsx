@@ -4,10 +4,16 @@ import { toast } from 'sonner';
 import { adminCommerceService } from '../../services/commerceService';
 import { Button } from '../ui/button';
 import { ImageWithFallback } from '../figma/ImageWithFallback';
+import { validateImageFiles } from '../../utils/imageUpload';
 
 interface AnnouncementImage {
   id?: string;
   url: string;
+  original_url?: string | null;
+  thumbnail_url?: string | null;
+  announcement_url?: string | null;
+  width?: number | null;
+  height?: number | null;
   path?: string;
   upload_token?: string | null;
 }
@@ -116,13 +122,14 @@ export function AdminAnnouncements() {
 
         <div>
           <div className="flex items-center justify-between mb-3">
-            <div><p className="text-sm font-medium">Hình ảnh minh họa</p><p className="text-xs text-muted-foreground">JPG, PNG hoặc WebP; tối đa 5 MB/ảnh, tối đa 10 ảnh.</p></div>
+            <div><p className="text-sm font-medium">Hình ảnh minh họa</p><p className="text-xs text-muted-foreground">JPG, PNG hoặc WebP; tối đa 5 MB/ảnh, cạnh dài từ 1000 px, tối đa 10 ảnh.</p></div>
             <label className="cursor-pointer">
               <input type="file" multiple accept="image/jpeg,image/png,image/webp" className="hidden" onChange={async (event) => {
                 const files = Array.from(event.target.files ?? []);
                 if (!files.length) return;
                 setUploading(true);
                 try {
+                  await validateImageFiles(files, 'announcement');
                   const uploaded = await adminCommerceService.announcements.uploadImages(files);
                   setForm((current) => ({ ...current, images: [...current.images, ...uploaded] }));
                   toast.success('Đã tải ảnh lên.');
@@ -137,7 +144,7 @@ export function AdminAnnouncements() {
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3">
             {form.images.map((image, index) => (
               <div key={image.id ?? `${image.url}-${index}`} className="border rounded-xl overflow-hidden bg-gray-50">
-                <ImageWithFallback src={image.url} alt={`Ảnh ${index + 1}`} className="w-full aspect-video object-cover" />
+                <ImageWithFallback src={image.thumbnail_url ?? image.url} alt={`Ảnh ${index + 1}`} className="w-full aspect-video object-cover" />
                 <div className="flex items-center justify-between p-2">
                   <span className="text-xs">Ảnh {index + 1}</span>
                   <div className="flex">
@@ -169,7 +176,7 @@ export function AdminAnnouncements() {
         {loading ? <div className="p-10 text-center">Đang tải...</div> : <div className="divide-y">
           {items.map((item) => (
             <article key={item.id} className="p-4 flex gap-4">
-              {item.images?.[0] && <ImageWithFallback src={item.images[0].url} alt={item.title} className="w-28 h-20 object-cover rounded-lg shrink-0" />}
+              {item.images?.[0] && <ImageWithFallback src={item.images[0].thumbnail_url ?? item.images[0].url} alt={item.title} className="w-28 h-20 object-cover rounded-lg shrink-0" />}
               <div className="flex-1 min-w-0"><div className="flex justify-between gap-3"><h3 className="font-medium">{item.title}</h3><span className="text-xs uppercase">{item.status}</span></div>
                 <p className="text-sm text-muted-foreground line-clamp-2 mt-1">{item.content}</p><p className="text-xs text-muted-foreground mt-2">{item.images?.length ?? 0} ảnh · {item.published_at ? new Date(item.published_at).toLocaleString('vi-VN') : 'Chưa đăng'}</p></div>
               <div className="flex items-start">

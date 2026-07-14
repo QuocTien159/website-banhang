@@ -114,6 +114,7 @@ class ProductController extends Controller
             'danhMuc',
             'hinhAnhs',
             'bienThes.giaTriThuocTinhs.thuocTinh',
+            'bienThes.hinhAnhs',
             'danhGias.khachHang',
             'danhGias.hinhAnhs',
         ])->where('ma_sp', $id)
@@ -130,6 +131,8 @@ class ProductController extends Controller
         $avgRating = \App\Models\DanhGia::where('ma_sp', $p->ma_sp)->where('trang_thai', 'approved')->avg('so_sao');
         $reviewCount = \App\Models\DanhGia::where('ma_sp', $p->ma_sp)->where('trang_thai', 'approved')->count();
 
+        $imageUrls = app(CloudinaryMediaService::class)->urls($p->anhChinh?->url, $p->anhChinh?->provider);
+
         return [
             'id'           => $p->ma_sp,
             'name'         => $p->ten_sp,
@@ -137,7 +140,8 @@ class ProductController extends Controller
             'category_id'  => $p->ma_dm,
             'price'        => (float)($minVariantPrice ?? $p->gia_co_ban),
             'original_price' => (float)$p->gia_co_ban,
-            'image'        => app(CloudinaryMediaService::class)->url($p->anhChinh?->url, $p->anhChinh?->provider, 'list'),
+            'image'        => $imageUrls['list_url'],
+            'image_urls'   => $imageUrls,
             'stock'        => $totalStock,
             'rating'       => round($avgRating ?? 0, 1),
             'review_count' => $reviewCount,
@@ -154,6 +158,10 @@ class ProductController extends Controller
         $avgRating = $approvedReviews->avg('so_sao');
         $totalStock = $p->bienThes->where('trang_thai', true)->sum('so_luong_ton');
 
+        $media = app(CloudinaryMediaService::class);
+        $primaryImage = $p->hinhAnhs->where('anh_chinh', true)->first();
+        $imageUrls = $media->urls($primaryImage?->url, $primaryImage?->provider);
+
         return [
             'id'           => $p->ma_sp,
             'name'         => $p->ten_sp,
@@ -161,8 +169,19 @@ class ProductController extends Controller
             'category_id'  => $p->ma_dm,
             'price'        => (float)($p->bienThes->where('trang_thai', true)->min('gia_ban') ?? $p->gia_co_ban),
             'original_price' => (float)$p->gia_co_ban,
-            'image'        => app(CloudinaryMediaService::class)->url($p->hinhAnhs->where('anh_chinh', true)->first()?->url, $p->hinhAnhs->where('anh_chinh', true)->first()?->provider, 'detail'),
-            'images'       => $p->hinhAnhs->map(fn ($image) => app(CloudinaryMediaService::class)->url($image->url, $image->provider, 'detail'))->values(),
+            'image'        => $imageUrls['detail_url'],
+            'image_urls'   => $imageUrls,
+            'images'       => $p->hinhAnhs->map(function ($image) use ($media) {
+                $urls = $media->urls($image->url, $image->provider);
+                return [
+                    'id' => $image->ma_anh,
+                    ...$urls,
+                    'width' => $image->chieu_rong,
+                    'height' => $image->chieu_cao,
+                    'variant_id' => $image->ma_bt,
+                    'is_primary' => $image->anh_chinh,
+                ];
+            })->values(),
             'description'  => $p->mo_ta,
             'specs'        => $this->buildSpecs($p),
             'stock'        => $totalStock,
@@ -178,7 +197,7 @@ class ProductController extends Controller
                 'sku'        => $bt->sku,
                 'price'      => (float)$bt->gia_ban,
                 'stock'      => $bt->so_luong_ton,
-                'image'      => app(CloudinaryMediaService::class)->url($bt->hinhAnhs->first()?->url, $bt->hinhAnhs->first()?->provider, 'detail'),
+                'image'      => $media->urls($bt->hinhAnhs->first()?->url, $bt->hinhAnhs->first()?->provider)['detail_url'],
                 'attributes' => $bt->giaTriThuocTinhs->map(fn($gt) => [
                     'name'  => $gt->thuocTinh->ten_tt,
                     'value' => $gt->gia_tri,

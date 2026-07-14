@@ -54,16 +54,35 @@ class CloudinaryMediaManagementTest extends TestCase
             'images' => [UploadedFile::fake()->image('announcement.jpg', 1200, 675)->size(700)],
         ])->assertCreated()->json('images.0');
 
-        $this->postJson('/api/admin/announcements', [
+        $created = $this->postJson('/api/admin/announcements', [
             'title' => 'Thông báo ảnh Cloudinary',
             'content' => 'Nội dung thông báo có ảnh đã được xác minh ở backend.',
             'type' => 'update',
             'status' => 'published',
             'images' => [$announcementImage],
         ])->assertCreated()
-            ->assertJsonPath('images.0.url', fn ($url) => str_contains($url, 'f_auto,q_auto,c_fill,w_1200,h_675'));
+            ->assertJsonPath('images.0.original_url', 'https://res.cloudinary.com/test-cloud/image/upload/v1/tienprosport/products/test-image')
+            ->assertJsonPath('images.0.announcement_url', fn ($url) => str_contains($url, 'f_auto,q_auto:good,c_limit,w_1600'))
+            ->json();
+
+        $this->assertSame($created['images'][0]['original_url'], $created['images'][0]['url']);
 
         Http::assertSentCount(2);
+    }
+
+    public function test_small_images_are_rejected_before_upload(): void
+    {
+        Sanctum::actingAs($this->admin);
+
+        $this->postJson('/api/admin/products/images', [
+            'images' => [UploadedFile::fake()->image('small-product.jpg', 799, 800)],
+        ])->assertUnprocessable()->assertJsonValidationErrors('images.0');
+
+        $this->postJson('/api/admin/announcements/images', [
+            'images' => [UploadedFile::fake()->image('small-announcement.jpg', 900, 600)],
+        ])->assertUnprocessable()->assertJsonValidationErrors('images');
+
+        Http::assertNothingSent();
     }
 
     public function test_staff_cannot_manage_product_or_announcement_images(): void

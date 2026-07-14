@@ -15,10 +15,15 @@ class CloudinaryMediaService
     {
         if (!$this->enabled()) {
             $path = $file->store($purpose, 'public');
+            $url = Storage::disk('public')->url($path);
             return [
-                'url' => Storage::disk('public')->url($path),
+                'url' => $url,
+                ...$this->urls($url, 'local'),
                 'path' => $path,
                 'provider' => 'local',
+                'public_id' => null,
+                'width' => $file->dimensions()[0] ?? null,
+                'height' => $file->dimensions()[1] ?? null,
                 'upload_token' => null,
             ];
         }
@@ -59,6 +64,7 @@ class CloudinaryMediaService
 
         return [
             'url' => $payload['url'],
+            ...$this->urls($payload['url'], 'cloudinary'),
             'provider' => 'cloudinary',
             'public_id' => $payload['public_id'],
             'width' => $payload['width'],
@@ -104,12 +110,28 @@ class CloudinaryMediaService
     {
         if (!$url || $provider !== 'cloudinary') return $url;
         $transformation = match ($context) {
-            'thumbnail' => 'f_auto,q_auto,c_fill,w_240,h_180',
-            'list' => 'f_auto,q_auto,c_fill,w_640,h_480',
-            'announcement' => 'f_auto,q_auto,c_fill,w_1200,h_675',
-            default => 'f_auto,q_auto,w_1600',
+            // Thumbnails have a fixed visual slot. Uploaded product images are at least 800px.
+            'thumbnail' => 'f_auto,q_auto:good,c_fill,g_auto,w_240,h_240',
+            // c_limit only downscales and preserves the source aspect ratio.
+            'list' => 'f_auto,q_auto:good,c_limit,w_640,h_640',
+            'announcement' => 'f_auto,q_auto:good,c_limit,w_1600',
+            default => 'f_auto,q_auto:good,c_limit,w_1600',
         };
         return str_replace('/image/upload/', '/image/upload/'.$transformation.'/', $url);
+    }
+
+    /**
+     * Keep the persisted Cloudinary secure_url untouched and expose derivatives per UI context.
+     */
+    public function urls(?string $url, ?string $provider): array
+    {
+        return [
+            'original_url' => $url,
+            'thumbnail_url' => $this->url($url, $provider, 'thumbnail'),
+            'list_url' => $this->url($url, $provider, 'list'),
+            'detail_url' => $this->url($url, $provider, 'detail'),
+            'announcement_url' => $this->url($url, $provider, 'announcement'),
+        ];
     }
 
     private function enabled(): bool

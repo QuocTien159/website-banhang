@@ -26,8 +26,18 @@ class AdminAnnouncementController extends Controller
         $this->abortUnlessAdmin($request);
         $data = $request->validate([
             'images' => ['required', 'array', 'min:1', 'max:10'],
-            'images.*' => ['required', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120', 'dimensions:min_width=300,min_height=200,max_width=5000,max_height=5000'],
+            'images.*' => ['required', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120', 'dimensions:max_width=5000,max_height=5000'],
         ]);
+
+        foreach ($data['images'] as $image) {
+            $dimensions = $image->dimensions();
+            if (!$dimensions || max($dimensions[0], $dimensions[1]) < 1000) {
+                return response()->json([
+                    'message' => 'Ảnh thông báo cần có cạnh dài tối thiểu 1000 px để hiển thị rõ nét.',
+                    'errors' => ['images' => ['Ảnh thông báo cần có cạnh dài tối thiểu 1000 px để hiển thị rõ nét.']],
+                ], 422);
+            }
+        }
 
         $media = app(CloudinaryMediaService::class);
         return response()->json([
@@ -144,10 +154,20 @@ class AdminAnnouncementController extends Controller
             'type' => $item->loai, 'status' => $item->trang_thai,
             'published_at' => $item->ngay_xuat_ban?->toISOString(),
             'created_at' => $item->ngay_tao?->toISOString(),
-            'images' => $item->hinhAnhs->map(fn ($image) => [
-                'id' => $image->ma_anh_tb, 'url' => $media->url($image->url, $image->provider, 'announcement'),
-                'path' => $image->duong_dan, 'order' => $image->thu_tu,
-            ])->values(),
+            'images' => $item->hinhAnhs->map(function ($image) use ($media) {
+                $urls = $media->urls($image->url, $image->provider);
+                return [
+                    'id' => $image->ma_anh_tb,
+                    'url' => $urls['original_url'],
+                    ...$urls,
+                    'path' => $image->duong_dan,
+                    'provider' => $image->provider,
+                    'public_id' => $image->cloudinary_public_id,
+                    'width' => $image->chieu_rong,
+                    'height' => $image->chieu_cao,
+                    'order' => $image->thu_tu,
+                ];
+            })->values(),
         ];
     }
 }

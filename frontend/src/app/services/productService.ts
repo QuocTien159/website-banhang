@@ -14,6 +14,7 @@ export interface ApiProduct {
   price: number;
   original_price: number;
   image: string | null;
+  image_urls?: ApiImageUrls;
   stock: number;
   rating: number;
   review_count: number;
@@ -22,8 +23,24 @@ export interface ApiProduct {
   attributes: ApiAttributeSummary[];
 }
 
+export interface ApiImageUrls {
+  original_url: string | null;
+  thumbnail_url: string | null;
+  list_url: string | null;
+  detail_url: string | null;
+  announcement_url: string | null;
+}
+
+export interface ApiProductImage extends ApiImageUrls {
+  id: string;
+  width?: number | null;
+  height?: number | null;
+  variant_id?: string | null;
+  is_primary?: boolean;
+}
+
 export interface ApiProductDetail extends ApiProduct {
-  images: string[];
+  images: ApiProductImage[];
   description: string;
   specs: { label: string; value: string }[];
   required_attributes: string[];

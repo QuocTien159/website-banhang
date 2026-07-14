@@ -26,8 +26,8 @@ class AnnouncementImageManagementTest extends TestCase
     {
         $uploads = $this->post('/api/admin/announcements/images', [
             'images' => [
-                UploadedFile::fake()->image('first.jpg', 900, 600)->size(500),
-                UploadedFile::fake()->image('second.png', 800, 600)->size(400),
+                UploadedFile::fake()->image('first.jpg', 1200, 675)->size(500),
+                UploadedFile::fake()->image('second.png', 1000, 750)->size(400),
             ],
         ])->assertCreated()->json('images');
 

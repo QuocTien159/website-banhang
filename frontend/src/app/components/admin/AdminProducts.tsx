@@ -12,6 +12,7 @@ import {
 import { useAuth } from '../../store/AppContext';
 import { ImageWithFallback } from '../figma/ImageWithFallback';
 import { Button } from '../ui/button';
+import { validateImageFiles } from '../../utils/imageUpload';
 
 const formatPrice = (price: number) =>
   new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(price);
@@ -245,7 +246,7 @@ export function AdminProducts() {
               {products.map((product) => (
                 <tr key={product.id}>
                   <td className="p-4"><div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-lg overflow-hidden bg-gray-100"><ImageWithFallback src={product.image ?? ''} alt={product.name} className="w-full h-full object-cover" /></div>
+                    <div className="w-12 h-12 rounded-lg overflow-hidden bg-gray-100"><ImageWithFallback src={product.image_urls?.thumbnail_url ?? product.image ?? ''} alt={product.name} className="w-full h-full object-cover" /></div>
                     <div><p className="font-medium max-w-64 truncate">{product.name}</p><p className="text-xs text-muted-foreground">{product.id}</p></div>
                   </div></td>
                   <td className="p-4">{product.category}</td>
@@ -292,11 +293,12 @@ export function AdminProducts() {
               </section>
 
               <section className="bg-white border rounded-xl p-5">
-                <div className="flex justify-between mb-4"><div><h4 className="font-semibold">2. Hình ảnh</h4><p className="text-xs text-muted-foreground">JPG, PNG hoặc WebP; tối đa 5 MB, kích thước từ 300×300 px.</p></div>
+                <div className="flex justify-between mb-4"><div><h4 className="font-semibold">2. Hình ảnh</h4><p className="text-xs text-muted-foreground">JPG, PNG hoặc WebP; tối đa 5 MB, kích thước từ 800×800 px.</p></div>
                   <label className="cursor-pointer"><input type="file" accept="image/jpeg,image/png,image/webp" multiple className="hidden" onChange={async (e) => {
                     const files = Array.from(e.target.files ?? []); if (!files.length) return;
                     setUploading(true);
                     try {
+                      await validateImageFiles(files, 'product');
                       const uploaded = await adminService.uploadProductImages(files);
                       setForm((current) => ({ ...current, images: [...current.images, ...uploaded.map((image, index) => ({ ...image, is_primary: current.images.length === 0 && index === 0 }))] }));
                     } catch (error: any) { toast.error(errorText(error)); } finally { setUploading(false); e.target.value = ''; }
@@ -305,7 +307,7 @@ export function AdminProducts() {
                 {firstFieldError('images') && <p className="text-sm text-red-600 mb-3">{firstFieldError('images')}</p>}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   {form.images.map((image, index) => <div key={image.id ?? image.url} className={`relative border-2 rounded-xl overflow-hidden ${image.is_primary ? 'border-orange-500' : 'border-transparent'}`}>
-                    <ImageWithFallback src={image.url} alt="" className="w-full aspect-square object-cover" />
+                    <ImageWithFallback src={image.thumbnail_url ?? image.url} alt="" className="w-full aspect-square object-cover" />
                     <select value={image.variant_id ?? image.variant_sku ?? ''} onChange={(event) => {
                       const value = event.target.value;
                       const selectedVariant = form.variants.find((variant) => variant.id === value);

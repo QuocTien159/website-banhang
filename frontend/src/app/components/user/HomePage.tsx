@@ -173,7 +173,7 @@ export function HomePage() {
                       {announcement.images.map((image, imageIndex) => (
                         <ImageWithFallback
                           key={image.id ?? image.url}
-                          src={image.url}
+                          src={image.announcement_url ?? image.detail_url ?? image.url}
                           alt={`${announcement.title} ${imageIndex + 1}`}
                           className="w-full max-h-[520px] object-contain bg-gray-50 border rounded-xl"
                         />

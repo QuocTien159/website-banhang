@@ -86,7 +86,9 @@ class AdminProductController extends Controller
         $this->abortUnlessAdmin($request);
         $data = $request->validate([
             'images' => ['required', 'array', 'min:1', 'max:8'],
-            'images.*' => ['required', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120', 'dimensions:min_width=300,min_height=300,max_width=5000,max_height=5000'],
+            'images.*' => ['required', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120', 'dimensions:min_width=800,min_height=800,max_width=5000,max_height=5000'],
+        ], [
+            'images.*.dimensions' => 'Ảnh sản phẩm cần tối thiểu 800 x 800 px để hiển thị rõ nét.',
         ]);
 
         $media = app(CloudinaryMediaService::class);
@@ -395,12 +397,14 @@ class AdminProductController extends Controller
     private function formatSummary(SanPham $product): array
     {
         $prices = $product->bienThes->pluck('gia_ban')->map(fn ($price) => (float) $price);
+        $imageUrls = app(CloudinaryMediaService::class)->urls($product->anhChinh?->url, $product->anhChinh?->provider);
         return [
             'id' => $product->ma_sp,
             'name' => $product->ten_sp,
             'category' => $product->danhMuc?->ten_dm,
             'category_id' => $product->ma_dm,
-            'image' => $product->anhChinh?->url,
+            'image' => $imageUrls['list_url'],
+            'image_urls' => $imageUrls,
             'min_price' => $prices->min() ?? (float) $product->gia_co_ban,
             'max_price' => $prices->max() ?? (float) $product->gia_co_ban,
             'price' => $prices->min() ?? (float) $product->gia_co_ban,
@@ -425,14 +429,22 @@ class AdminProductController extends Controller
     {
         return array_merge($this->formatSummary($product), [
             'description' => $product->mo_ta,
-            'images' => $product->hinhAnhs->map(fn (HinhAnhSanPham $image) => [
+            'images' => $product->hinhAnhs->map(function (HinhAnhSanPham $image) {
+                $urls = app(CloudinaryMediaService::class)->urls($image->url, $image->provider);
+                return [
                 'id' => $image->ma_anh,
-                'url' => app(CloudinaryMediaService::class)->url($image->url, $image->provider, 'detail'),
-                'thumbnail_url' => app(CloudinaryMediaService::class)->url($image->url, $image->provider, 'thumbnail'),
+                // url remains the original for compatibility with the editor payload.
+                'url' => $urls['original_url'],
+                ...$urls,
+                'provider' => $image->provider,
+                'public_id' => $image->cloudinary_public_id,
+                'width' => $image->chieu_rong,
+                'height' => $image->chieu_cao,
                 'is_primary' => $image->anh_chinh,
                 'variant_id' => $image->ma_bt,
                 'order' => $image->thu_tu,
-            ])->values(),
+            ];
+            })->values(),
             'variants' => $product->bienThes->map(fn (BienTheSanPham $variant) => [
                 'id' => $variant->ma_bt,
                 'sku' => $variant->sku,

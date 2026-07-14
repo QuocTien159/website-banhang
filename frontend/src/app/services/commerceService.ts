@@ -6,7 +6,7 @@ export interface WishlistItem {
 }
 export interface Announcement {
   id: string; title: string; content: string; type: string; published_at: string;
-  images: { id?: string; url: string; path?: string; order?: number }[];
+  images: { id?: string; url: string; original_url?: string | null; thumbnail_url?: string | null; list_url?: string | null; detail_url?: string | null; announcement_url?: string | null; width?: number | null; height?: number | null; path?: string; order?: number }[];
 }
 export interface ReviewCandidate {
   order_id: string; product_id: string; product_name: string; image: string | null;
