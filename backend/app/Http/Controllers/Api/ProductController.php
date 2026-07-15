@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\BienTheSanPham;
+use App\Models\HinhAnhSanPham;
 use App\Models\SanPham;
 use App\Services\CloudinaryMediaService;
 use Illuminate\Http\Request;
@@ -63,6 +65,7 @@ class ProductController extends Controller
         if ($request->filled('min_price') || $request->filled('max_price')) {
             $query->whereHas('bienThes', function ($variantQuery) use ($request) {
                 $variantQuery->where('trang_thai', true)
+                    ->where('trang_thai_ban', 'active')
                     ->when(
                         $request->filled('min_price'),
                         fn ($priceQuery) => $priceQuery->where('gia_ban', '>=', $request->input('min_price'))
@@ -76,7 +79,10 @@ class ProductController extends Controller
 
         // Featured only
         if ($request->boolean('featured')) {
-            $query->whereHas('bienThes', fn($q) => $q->where('so_luong_ton', '>', 0));
+            $query->whereHas('bienThes', fn($q) => $q
+                ->where('trang_thai', true)
+                ->where('trang_thai_ban', 'active')
+                ->where('so_luong_ton', '>', 0));
         }
 
         // Sort
@@ -113,6 +119,7 @@ class ProductController extends Controller
         $product = SanPham::with([
             'danhMuc',
             'hinhAnhs',
+            'hinhAnhs.bienThe.giaTriThuocTinhs.thuocTinh',
             'bienThes.giaTriThuocTinhs.thuocTinh',
             'bienThes.hinhAnhs',
             'danhGias.khachHang',
@@ -126,8 +133,9 @@ class ProductController extends Controller
 
     private function formatProduct(SanPham $p): array
     {
-        $minVariantPrice = $p->bienThes->where('trang_thai', true)->min('gia_ban');
-        $totalStock = $p->bienThes->where('trang_thai', true)->sum('so_luong_ton');
+        $sellableVariants = $p->bienThes->filter(fn (BienTheSanPham $variant) => $variant->isSellable());
+        $minVariantPrice = $sellableVariants->min('gia_ban');
+        $totalStock = $sellableVariants->sum('so_luong_ton');
         $avgRating = \App\Models\DanhGia::where('ma_sp', $p->ma_sp)->where('trang_thai', 'approved')->avg('so_sao');
         $reviewCount = \App\Models\DanhGia::where('ma_sp', $p->ma_sp)->where('trang_thai', 'approved')->count();
 
@@ -156,7 +164,8 @@ class ProductController extends Controller
     {
         $approvedReviews = $p->danhGias->where('trang_thai', 'approved');
         $avgRating = $approvedReviews->avg('so_sao');
-        $totalStock = $p->bienThes->where('trang_thai', true)->sum('so_luong_ton');
+        $sellableVariants = $p->bienThes->filter(fn (BienTheSanPham $variant) => $variant->isSellable());
+        $totalStock = $sellableVariants->sum('so_luong_ton');
 
         $media = app(CloudinaryMediaService::class);
         $primaryImage = $p->hinhAnhs->where('anh_chinh', true)->first();
@@ -167,7 +176,7 @@ class ProductController extends Controller
             'name'         => $p->ten_sp,
             'category'     => $p->danhMuc?->ten_dm,
             'category_id'  => $p->ma_dm,
-            'price'        => (float)($p->bienThes->where('trang_thai', true)->min('gia_ban') ?? $p->gia_co_ban),
+            'price'        => (float)($sellableVariants->min('gia_ban') ?? $p->gia_co_ban),
             'original_price' => (float)$p->gia_co_ban,
             'image'        => $imageUrls['detail_url'],
             'image_urls'   => $imageUrls,
@@ -192,17 +201,21 @@ class ProductController extends Controller
             'brand'        => $this->attributeValue($p, 'Thương hiệu'),
             'attributes'   => $this->attributeSummary($p),
             'required_attributes' => $this->requiredAttributes($p),
-            'variants'     => $p->bienThes->where('trang_thai', true)->map(fn($bt) => [
-                'id'         => $bt->ma_bt,
-                'sku'        => $bt->sku,
-                'price'      => (float)$bt->gia_ban,
-                'stock'      => $bt->so_luong_ton,
-                'image'      => $media->urls($bt->hinhAnhs->first()?->original_url ?? $bt->hinhAnhs->first()?->url, $bt->hinhAnhs->first()?->provider, $this->crop($bt->hinhAnhs->first()))['detail_url'],
-                'attributes' => $bt->giaTriThuocTinhs->map(fn($gt) => [
-                    'name'  => $gt->thuocTinh->ten_tt,
-                    'value' => $gt->gia_tri,
-                ])->values(),
-            ])->values(),
+            'variants'     => $sellableVariants->map(function (BienTheSanPham $bt) use ($p, $media) {
+                $image = $this->imageForVariant($p, $bt);
+                return [
+                    'id'         => $bt->ma_bt,
+                    'sku'        => $bt->sku,
+                    'price'      => (float) $bt->gia_ban,
+                    'stock'      => $bt->so_luong_ton,
+                    'stock_status' => $bt->stockStatus(),
+                    'image'      => $media->urls($image?->original_url ?? $image?->url, $image?->provider, $this->crop($image))['detail_url'],
+                    'attributes' => $bt->giaTriThuocTinhs->map(fn($gt) => [
+                        'name'  => $gt->thuocTinh->ten_tt,
+                        'value' => $gt->gia_tri,
+                    ])->values(),
+                ];
+            })->values(),
             'reviews' => $approvedReviews->sortByDesc('ngay_danh_gia')->take(10)->map(fn($dg) => [
                 'id'      => $dg->ma_danh_gia,
                 'name'    => $dg->khachHang?->ten_kh ?? 'Ẩn danh',
@@ -233,6 +246,48 @@ class ProductController extends Controller
             'label' => $name,
             'value' => implode(', ', array_unique($vals)),
         ])->values()->toArray();
+    }
+
+    private function imageForVariant(SanPham $product, BienTheSanPham $variant): ?HinhAnhSanPham
+    {
+        $exact = $variant->hinhAnhs->first();
+        if ($exact) return $exact;
+
+        $targetVisualValues = $variant->giaTriThuocTinhs
+            ->filter(fn ($value) => $this->isVisualAttribute($value->thuocTinh?->ten_tt))
+            ->mapWithKeys(fn ($value) => [$value->thuocTinh?->ten_tt => $value->gia_tri])
+            ->all();
+
+        if ($targetVisualValues) {
+            $matched = $product->hinhAnhs
+                ->whereNotNull('ma_bt')
+                ->filter(function (HinhAnhSanPham $image) use ($product, $targetVisualValues) {
+                    $source = $product->bienThes->firstWhere('ma_bt', $image->ma_bt);
+                    if (!$source) return false;
+                    $sourceVisualValues = $source->giaTriThuocTinhs
+                        ->filter(fn ($value) => $this->isVisualAttribute($value->thuocTinh?->ten_tt))
+                        ->mapWithKeys(fn ($value) => [$value->thuocTinh?->ten_tt => $value->gia_tri])
+                        ->all();
+                    return count(array_intersect_assoc($sourceVisualValues, $targetVisualValues)) > 0;
+                })
+                ->sortBy('thu_tu')
+                ->first();
+            if ($matched) return $matched;
+        }
+
+        return $product->hinhAnhs->whereNull('ma_bt')->sortBy('thu_tu')->first()
+            ?? $product->hinhAnhs->sortBy('thu_tu')->first();
+    }
+
+    private function isVisualAttribute(?string $name): bool
+    {
+        $name = mb_strtolower($name ?? '');
+        return str_contains($name, 'màu')
+            || str_contains($name, 'color')
+            || str_contains($name, 'kiểu')
+            || str_contains($name, 'style')
+            || str_contains($name, 'họa tiết')
+            || str_contains($name, 'pattern');
     }
 
     private function attributeValue(SanPham $product, string $name): ?string

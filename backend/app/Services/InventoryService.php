@@ -30,7 +30,7 @@ class InventoryService
             ]);
         }
 
-        $variant->update(['so_luong_ton' => $after]);
+        $variant->update(['so_luong_ton' => $after, 'ngay_cap_nhat' => now()]);
 
         LichSuBienDongKho::create([
             'ma_bien_the' => $variant->ma_bt,

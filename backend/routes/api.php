@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\ReviewController;
 use App\Http\Controllers\Api\WishlistController;
 use App\Http\Controllers\Api\Admin\AdminProductController;
+use App\Http\Controllers\Api\Admin\AdminVariantController;
 use App\Http\Controllers\Api\Admin\AdminOrderController;
 use App\Http\Controllers\Api\Admin\AdminCustomerController;
 use App\Http\Controllers\Api\Admin\AdminReportController;
@@ -110,7 +111,6 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get   ('products/options',        [AdminProductController::class, 'options']);
         Route::get   ('products/{id}',           [AdminProductController::class, 'show']);
         Route::put   ('products/{id}/hide',      [AdminProductController::class, 'hide']);
-        Route::put   ('variants/{id}',           [AdminProductController::class, 'updateVariant']);
 
         Route::get('reviews', [AdminReviewController::class, 'index']);
         Route::put('reviews/{id}/status', [AdminReviewController::class, 'moderate']);
@@ -133,6 +133,11 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('orders/{id}/status',         [AdminOrderController::class, 'updateStatus']);
         Route::put('orders/{id}/payment-status', [AdminOrderController::class, 'updatePaymentStatus']);
         Route::middleware('role:'.UserRole::ADMIN)->group(function () {
+            Route::get   ('variants',                 [AdminVariantController::class, 'index']);
+            Route::get   ('variants/{id}',            [AdminVariantController::class, 'show']);
+            Route::post  ('variants',                 [AdminVariantController::class, 'store']);
+            Route::put   ('variants/{id}',            [AdminVariantController::class, 'update']);
+
             Route::post  ('products/images',         [AdminProductController::class, 'uploadImages']);
             Route::post  ('products',                [AdminProductController::class, 'store']);
             Route::put   ('products/{id}',           [AdminProductController::class, 'update']);

@@ -53,6 +53,7 @@ export interface ApiVariant {
   sku: string;
   price: number;
   stock: number;
+  stock_status?: 'in_stock' | 'low_stock' | 'out_of_stock';
   image?: string | null;
   attributes: { name: string; value: string }[];
 }

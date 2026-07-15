@@ -19,12 +19,13 @@ class SanPham extends Model
 
     protected $fillable = [
         'ma_sp', 'ma_dm', 'ten_sp', 'mo_ta',
-        'gia_co_ban', 'trang_thai', 'ngay_tao',
+        'gia_co_ban', 'trang_thai', 'ngay_tao', 'ngay_cap_nhat',
     ];
 
     protected $casts = [
         'gia_co_ban' => 'decimal:2',
         'ngay_tao' => 'datetime',
+        'ngay_cap_nhat' => 'datetime',
     ];
 
     // Relationships

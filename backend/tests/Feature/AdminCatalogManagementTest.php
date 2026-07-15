@@ -76,24 +76,12 @@ class AdminCatalogManagementTest extends TestCase
             ],
             'variants' => [
                 [
-                    'sku' => 'ADMIN-TEST-DEN-M',
-                    'price' => 450000,
-                    'stock' => 10,
-                    'active' => true,
-                    'attributes' => [
-                        ['name' => 'Màu sắc', 'value' => 'Đen'],
-                        ['name' => 'Kích thước', 'value' => 'M'],
-                    ],
+                    'sku' => 'ADMIN-TEST-DEN-M', 'price' => 450000, 'stock' => 10, 'active' => true,
+                    'attributes' => [['name' => 'Màu sắc', 'value' => 'Đen'], ['name' => 'Kích thước', 'value' => 'M']],
                 ],
                 [
-                    'sku' => 'ADMIN-TEST-TRANG-L',
-                    'price' => 520000,
-                    'stock' => 5,
-                    'active' => true,
-                    'attributes' => [
-                        ['name' => 'Màu sắc', 'value' => 'Trắng'],
-                        ['name' => 'Kích thước', 'value' => 'L'],
-                    ],
+                    'sku' => 'ADMIN-TEST-TRANG-L', 'price' => 520000, 'stock' => 5, 'active' => true,
+                    'attributes' => [['name' => 'Màu sắc', 'value' => 'Trắng'], ['name' => 'Kích thước', 'value' => 'L']],
                 ],
             ],
         ];
@@ -114,7 +102,8 @@ class AdminCatalogManagementTest extends TestCase
             'id' => $created['variants'][0]['id'],
             'sku' => $created['variants'][0]['sku'],
             'price' => 475000,
-            'stock' => 8,
+            'stock' => $created['variants'][0]['stock'],
+            'low_stock_threshold' => $created['variants'][0]['low_stock_threshold'],
             'active' => true,
             'attributes' => $created['variants'][0]['attributes'],
         ]];

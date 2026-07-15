@@ -11,6 +11,7 @@ use App\Models\SanPham;
 use App\Models\YeuCauTraHang;
 use App\Support\OrderStatus;
 use App\Support\UserRole;
+use App\Services\VariantStockStatusService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -25,7 +26,7 @@ class AdminReportController extends Controller
      * Operational dashboard data. Revenue is recognised only for delivered
      * orders and is reduced by returns that have been received/completed.
      */
-    public function dashboard(Request $request)
+    public function dashboard(Request $request, VariantStockStatusService $stockStatus)
     {
         $data = $request->validate([
             'from' => ['required', 'date'],
@@ -72,10 +73,8 @@ class AdminReportController extends Controller
             'last_processed_by' => $order->xuLyGanNhat?->nguoiXuLy?->ten_kh,
         ])->values();
 
-        $lowStock = BienTheSanPham::where('trang_thai', true)
-            ->whereColumn('so_luong_ton', '<=', 'nguong_canh_bao_ton')
-            ->count();
-        $outOfStock = BienTheSanPham::where('trang_thai', true)->where('so_luong_ton', 0)->count();
+        $lowStock = $stockStatus->alertQuery()->count();
+        $outOfStock = $stockStatus->alertQuery()->where('so_luong_ton', 0)->count();
 
         return response()->json([
             'period' => [
@@ -229,7 +228,7 @@ class AdminReportController extends Controller
             ->flatMap->chiTiets->groupBy('ma_bien_the')->map(fn ($items) => (int) $items->sum('so_luong'))->all();
     }
 
-    public function summary()
+    public function summary(VariantStockStatusService $stockStatus)
     {
         $totalRevenue = $this->netRevenueForOrders(DonHang::with(['chiTiets', 'yeuCauTraHangs.chiTiets'])
             ->whereIn('trang_thai', self::REVENUE_STATUSES)
@@ -238,9 +237,7 @@ class AdminReportController extends Controller
         $pendingOrders = DonHang::where('trang_thai', 'pending')->count();
         $totalCustomers = KhachHang::where('role', UserRole::CUSTOMER)->where('vai_tro', false)->count();
         $totalProducts = SanPham::where('trang_thai', 'active')->count();
-        $lowStockCount = BienTheSanPham::where('trang_thai', true)
-            ->whereColumn('so_luong_ton', '<=', 'nguong_canh_bao_ton')
-            ->count();
+        $lowStockCount = $stockStatus->alertQuery()->count();
 
         $recentOrders = DonHang::with('khachHang')
             ->orderBy('ngay_dat', 'desc')
@@ -358,11 +355,10 @@ class AdminReportController extends Controller
         ]);
     }
 
-    public function inventory()
+    public function inventory(VariantStockStatusService $stockStatus)
     {
-        $lowStock = BienTheSanPham::with(['sanPham.anhChinh'])
-            ->where('trang_thai', true)
-            ->whereColumn('so_luong_ton', '<=', 'nguong_canh_bao_ton')
+        $lowStock = $stockStatus->alertQuery()
+            ->with(['sanPham.anhChinh'])
             ->orderBy('so_luong_ton', 'asc')
             ->get()
             ->map(fn (BienTheSanPham $variant) => [
@@ -373,14 +369,14 @@ class AdminReportController extends Controller
                 'image' => $variant->sanPham?->anhChinh?->url,
                 'stock' => $variant->so_luong_ton,
                 'low_stock_threshold' => $variant->nguong_canh_bao_ton,
-                'alert_level' => $variant->so_luong_ton === 0 ? 'out_of_stock' : ($variant->so_luong_ton <= 5 ? 'critical' : 'low'),
+                'alert_level' => $stockStatus->status($variant),
             ]);
 
         return response()->json([
             'low_stock_items' => $lowStock,
             'out_of_stock' => $lowStock->where('alert_level', 'out_of_stock')->count(),
-            'critical' => $lowStock->where('alert_level', 'critical')->count(),
-            'low' => $lowStock->where('alert_level', 'low')->count(),
+            'critical' => 0,
+            'low' => $lowStock->where('alert_level', 'low_stock')->count(),
         ]);
     }
 

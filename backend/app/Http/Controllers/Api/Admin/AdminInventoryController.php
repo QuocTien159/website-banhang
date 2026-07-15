@@ -8,6 +8,7 @@ use App\Models\ChiTietPhieuNhapKho;
 use App\Models\LichSuBienDongKho;
 use App\Models\PhieuNhapKho;
 use App\Services\InventoryService;
+use App\Services\VariantStockStatusService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -265,11 +266,10 @@ class AdminInventoryController extends Controller
         ]);
     }
 
-    public function alerts(Request $request)
+    public function alerts(Request $request, VariantStockStatusService $stockStatus)
     {
-        $query = BienTheSanPham::with(['sanPham.anhChinh', 'giaTriThuocTinhs.thuocTinh'])
-            ->where('trang_thai', true)
-            ->whereColumn('so_luong_ton', '<=', 'nguong_canh_bao_ton');
+        $query = $stockStatus->alertQuery()
+            ->with(['sanPham.anhChinh', 'giaTriThuocTinhs.thuocTinh']);
 
         if ($search = $request->input('search')) {
             $query->where(function ($q) use ($search) {
@@ -281,7 +281,7 @@ class AdminInventoryController extends Controller
         return response()->json([
             'data' => $query->orderBy('so_luong_ton')->get()->map(fn (BienTheSanPham $variant) => [
                 ...$this->formatVariant($variant),
-                'status' => $variant->so_luong_ton <= 0 ? 'out_of_stock' : 'low_stock',
+                'status' => $stockStatus->status($variant),
             ]),
         ]);
     }

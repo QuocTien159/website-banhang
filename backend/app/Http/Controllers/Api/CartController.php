@@ -26,9 +26,10 @@ class CartController extends Controller
             'quantity'   => 'required|integer|min:1',
         ]);
 
-        $variant = BienTheSanPham::where('ma_bt', $data['variant_id'])
-            ->where('trang_thai', true)
-            ->firstOrFail();
+        $variant = BienTheSanPham::findOrFail($data['variant_id']);
+        if (!$variant->isSellable()) {
+            return response()->json(['message' => 'Biến thể này hiện không được bán.'], 422);
+        }
 
         if ($variant->so_luong_ton < $data['quantity']) {
             return response()->json([
@@ -82,6 +83,9 @@ class CartController extends Controller
             $item->delete();
         } else {
             $variant = BienTheSanPham::find($variantId);
+            if (!$variant || !$variant->isSellable()) {
+                return response()->json(['message' => 'Biến thể này hiện không được bán.'], 422);
+            }
             if ($data['quantity'] > $variant->so_luong_ton) {
                 return response()->json([
                     'message' => "Chỉ còn {$variant->so_luong_ton} sản phẩm trong kho.",

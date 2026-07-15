@@ -27,6 +27,7 @@ import { Toaster } from '../ui/sonner';
 const mainItems = [
   { label: 'Tổng quan', href: '/admin', icon: LayoutDashboard, exact: true },
   { label: 'Sản phẩm', href: '/admin/products', icon: Package },
+  { label: 'Biến thể', href: '/admin/variants', icon: Package },
   { label: 'Danh mục', href: '/admin/categories', icon: Tags },
   { label: 'Thuộc tính', href: '/admin/attributes', icon: SlidersHorizontal },
 ];
@@ -56,7 +57,7 @@ const websiteItems = [
   { label: 'Nhân viên', href: '/admin/staff', icon: Users },
 ];
 
-const adminOnlyPaths = ['/admin', '/admin/categories', '/admin/attributes', '/admin/promotions', '/admin/homepage-promotion', '/admin/announcements', '/admin/payment-shipping', '/admin/customers', '/admin/staff'];
+const adminOnlyPaths = ['/admin', '/admin/categories', '/admin/attributes', '/admin/variants', '/admin/promotions', '/admin/homepage-promotion', '/admin/announcements', '/admin/payment-shipping', '/admin/customers', '/admin/staff'];
 const staffHome = '/admin/products';
 const allItems = [...mainItems, ...inventoryItems, ...orderItems, ...configItems, ...websiteItems];
 

@@ -114,19 +114,17 @@ export interface AdminImage {
   list_url?: string | null;
   detail_url?: string | null;
   announcement_url?: string | null;
-  provider?: string | null;
+  provider?: 'cloudinary' | 'local' | null;
   public_id?: string | null;
   width?: number | null;
   height?: number | null;
   crop?: { x: number; y: number; width: number; height: number; rotation: number };
   path?: string;
   upload_token?: string | null;
-  provider?: 'cloudinary' | 'local';
-  public_id?: string;
   variant_id?: string | null;
   variant_sku?: string;
+  variant_attributes?: { name: string; value: string }[];
   order?: number;
-  thumbnail_url?: string;
   is_primary: boolean;
 }
 
@@ -149,16 +147,21 @@ export interface AdminProductSummary {
   min_price: number;
   max_price: number;
   base_price: number;
-  stock: number;
   variant_count: number;
+  low_stock_variant_count?: number;
   status: 'active' | 'inactive' | 'out_of_stock';
+  updated_at?: string | null;
   image_urls?: Pick<AdminImage, 'original_url' | 'thumbnail_url' | 'list_url' | 'detail_url'>;
 }
 
 export interface AdminProductDetail extends AdminProductSummary {
   description: string | null;
   images: AdminImage[];
-  variants: AdminVariant[];
+  variants?: AdminVariant[];
+  configuration?: {
+    shared_attributes: { name: string; value: string }[];
+    variant_axes: { name: string; values: string[] }[];
+  };
 }
 
 export interface AdminProductPayload {
@@ -168,7 +171,38 @@ export interface AdminProductPayload {
   base_price: number;
   status: 'active' | 'inactive' | 'out_of_stock';
   images: AdminImage[];
-  variants: AdminVariant[];
+  variants?: AdminVariant[];
+  shared_attributes?: { name: string; value: string }[];
+  variant_axes?: { name: string; values: string[] }[];
+}
+
+export interface AdminManagedVariant {
+  id: string;
+  product_id: string;
+  product_name?: string;
+  sku: string;
+  list_price: number;
+  price: number;
+  stock: number;
+  low_stock_threshold: number;
+  sell_status: 'active' | 'inactive' | 'incomplete';
+  stock_status: 'in_stock' | 'low_stock' | 'out_of_stock' | 'inactive' | 'incomplete';
+  attributes: { name: string; value: string }[];
+  image_id?: string | null;
+  image?: string | null;
+  image_mode: 'own' | 'shared';
+  updated_at?: string | null;
+}
+
+export interface AdminVariantGroup {
+  id: string;
+  name: string;
+  category?: string | null;
+  image?: string | null;
+  variant_count: number;
+  stock_total: number;
+  alert_count: number;
+  variants: AdminManagedVariant[];
 }
 
 export interface AdminAttributeValue {
@@ -328,8 +362,20 @@ export const adminService = {
     const { data } = await apiClient.put(`/admin/products/${id}/hide`);
     return data;
   },
-  async updateVariantStock(variantId: string, so_luong_ton: number) {
-    const { data } = await apiClient.put(`/admin/variants/${variantId}`, { so_luong_ton });
+  async getVariants(params: Record<string, string | number> = {}) {
+    const { data } = await apiClient.get('/admin/variants', { params });
+    return data;
+  },
+  async getVariant(id: string) {
+    const { data } = await apiClient.get(`/admin/variants/${id}`);
+    return data;
+  },
+  async createVariant(payload: Omit<AdminManagedVariant, 'id' | 'stock' | 'stock_status' | 'image' | 'image_mode' | 'updated_at'>) {
+    const { data } = await apiClient.post('/admin/variants', payload);
+    return data;
+  },
+  async updateVariant(variantId: string, payload: Partial<Pick<AdminManagedVariant, 'sku' | 'list_price' | 'price' | 'low_stock_threshold' | 'sell_status' | 'attributes' | 'image_id'>>) {
+    const { data } = await apiClient.put(`/admin/variants/${variantId}`, payload);
     return data;
   },
 

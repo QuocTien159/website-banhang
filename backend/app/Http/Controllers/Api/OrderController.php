@@ -84,7 +84,7 @@ class OrderController extends Controller
 
         foreach ($cart->chiTiets as $item) {
             $variant = $item->bienThe;
-            if (!$variant || !$variant->trang_thai) {
+            if (!$variant || !$variant->isSellable()) {
                 return response()->json(['message' => 'Biến thể sản phẩm không hợp lệ.'], 422);
             }
             if ($variant->so_luong_ton < $item->so_luong) {

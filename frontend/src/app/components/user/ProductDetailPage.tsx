@@ -82,16 +82,39 @@ export function ProductDetailPage() {
     setActiveImage(variantImage?.detail_url ?? selectedVariant.image ?? product.image ?? '');
   }, [product, selectedVariant]);
 
-  const optionAvailable = (attributeName: string, value: string) => {
-    if (!product) return false;
+  const optionState = (attributeName: string, value: string): 'available' | 'out_of_stock' | 'unavailable' => {
+    if (!product) return 'unavailable';
     const candidateSelection = { ...selected, [attributeName]: value };
-    return product.variants.some(
+    const matching = product.variants.filter(
       (variant) =>
-        variant.stock > 0 &&
         Object.entries(candidateSelection).every(([name, selectedValue]) =>
           variantHas(variant, name, selectedValue)
         )
     );
+    if (matching.length === 0) return 'unavailable';
+    return matching.some((variant) => variant.stock > 0) ? 'available' : 'out_of_stock';
+  };
+
+  const selectOption = (attributeName: string, value: string) => {
+    if (!product) return;
+
+    setSelected((current) => {
+      const next = { ...current, [attributeName]: value };
+
+      // A color/style change can invalidate a previous size selection.
+      Object.keys(next).forEach((name) => {
+        if (name === attributeName) return;
+        const isCompatible = product.variants.some((variant) =>
+          Object.entries(next).every(([attribute, selectedValue]) =>
+            variantHas(variant, attribute, selectedValue)
+          )
+        );
+        if (!isCompatible) delete next[name];
+      });
+
+      return next;
+    });
+    setQuantity(1);
   };
 
   const addSelectedVariant = async (): Promise<boolean> => {
@@ -220,26 +243,33 @@ export function ProductDetailPage() {
                 </p>
                 <div className="flex flex-wrap gap-2">
                   {values.map((value) => {
-                    const available = optionAvailable(name, value);
+                    const state = optionState(name, value);
+                    const selectable = state !== 'unavailable';
                     const active = selected[name] === value;
+                    const label = state === 'out_of_stock' ? 'Hết hàng' : state === 'unavailable' ? 'Không có biến thể này' : undefined;
                     return (
-                      <button
-                        key={value}
-                        disabled={!available}
-                        onClick={() => {
-                          setSelected((current) => ({ ...current, [name]: value }));
-                          setQuantity(1);
-                        }}
-                        className={`px-3 py-2 rounded-lg border text-sm ${
-                          active
-                            ? 'border-orange-500 bg-orange-50 text-orange-700 font-medium'
-                            : available
-                              ? 'border-border hover:border-orange-300'
-                              : 'border-gray-200 text-gray-400 line-through cursor-not-allowed'
-                        }`}
-                      >
-                        {value}
-                      </button>
+                      <span key={value} title={label}>
+                        <button
+                          disabled={!selectable}
+                          aria-label={label ? `${value}: ${label}` : value}
+                          onClick={() => selectOption(name, value)}
+                          className={`px-3 py-2 rounded-lg border text-sm ${
+                            active && state === 'out_of_stock'
+                              ? 'border-red-300 bg-red-50 text-red-600 font-medium line-through'
+                              : active
+                                ? 'border-orange-500 bg-orange-50 text-orange-700 font-medium'
+                                : state === 'available'
+                                  ? 'border-border hover:border-orange-300'
+                                  : state === 'out_of_stock'
+                                    ? 'border-red-200 bg-red-50 text-red-500 line-through'
+                                    : 'border-gray-200 text-gray-400 line-through cursor-not-allowed'
+                          }`}
+                        >
+                          <span>{value}</span>
+                          {state === 'out_of_stock' && <span className="ml-1 text-xs">(Hết hàng)</span>}
+                          {state === 'unavailable' && <span className="ml-1 text-xs">(Không có)</span>}
+                        </button>
+                      </span>
                     );
                   })}
                 </div>
@@ -250,9 +280,11 @@ export function ProductDetailPage() {
           <div className="mt-5 text-sm">
             {!selectionComplete
               ? 'Hãy chọn đầy đủ thuộc tính để xem tồn kho và SKU.'
-              : selectedVariant?.stock
-                ? `Còn ${selectedVariant.stock} sản phẩm`
-                : 'Biến thể đã hết hàng'}
+              : !selectedVariant
+                ? 'Không có phiên bản này.'
+                : selectedVariant.stock > 0
+                  ? 'Còn ' + selectedVariant.stock + ' sản phẩm'
+                  : 'Biến thể này đã hết hàng.'}
           </div>
 
           <div className="flex items-center gap-4 my-5">

@@ -19,7 +19,8 @@ class BienTheSanPham extends Model
 
     protected $fillable = [
         'ma_bt', 'ma_sp', 'sku', 'variant_signature',
-        'gia_ban', 'so_luong_ton', 'nguong_canh_bao_ton', 'trang_thai',
+        'gia_ban', 'gia_niem_yet', 'so_luong_ton', 'nguong_canh_bao_ton',
+        'trang_thai', 'trang_thai_ban', 'ngay_cap_nhat',
     ];
 
     public static function signatureFor(array $attributes): string
@@ -39,8 +40,10 @@ class BienTheSanPham extends Model
 
     protected $casts = [
         'gia_ban' => 'decimal:2',
+        'gia_niem_yet' => 'decimal:2',
         'nguong_canh_bao_ton' => 'integer',
         'trang_thai' => 'boolean',
+        'ngay_cap_nhat' => 'datetime',
     ];
 
     public function sanPham()
@@ -76,5 +79,23 @@ class BienTheSanPham extends Model
     public function hinhAnhs()
     {
         return $this->hasMany(HinhAnhSanPham::class, 'ma_bt', 'ma_bt');
+    }
+
+    public function isSellable(): bool
+    {
+        return $this->trang_thai && $this->trang_thai_ban === 'active';
+    }
+
+    public function stockStatus(): string
+    {
+        if (!$this->isSellable()) {
+            return $this->trang_thai_ban === 'incomplete' ? 'incomplete' : 'inactive';
+        }
+
+        if ($this->so_luong_ton === 0) {
+            return 'out_of_stock';
+        }
+
+        return $this->so_luong_ton <= $this->nguong_canh_bao_ton ? 'low_stock' : 'in_stock';
     }
 }
