@@ -362,7 +362,7 @@ export const adminService = {
     const { data } = await apiClient.get('/admin/reports/inventory');
     return data;
   },
-  async getDashboard(params: { from: string; to: string }) {
+  async getDashboard(params: { from: string; to: string; limit?: number }) {
     const { data } = await apiClient.get('/admin/reports/dashboard', { params });
     return data;
   },
