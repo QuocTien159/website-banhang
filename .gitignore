@@ -5,6 +5,10 @@ frontend/.env
 frontend/.env.local
 .pnpm-store/
 
+# Local documentation and development tools
+/docs/
+/tools/
+
 # Backend
 backend/vendor/
 backend/node_modules/
