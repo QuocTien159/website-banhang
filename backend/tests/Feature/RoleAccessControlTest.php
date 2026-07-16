@@ -112,4 +112,38 @@ class RoleAccessControlTest extends TestCase
             ->assertOk()
             ->assertJsonPath('active', false);
     }
+
+    public function test_admin_cannot_lock_or_demote_their_own_account(): void
+    {
+        $admin = KhachHang::where('vai_tro', true)->firstOrFail();
+        Sanctum::actingAs($admin);
+
+        $this->putJson("/api/admin/staff/{$admin->ma_kh}/status")
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('staff');
+
+        $this->putJson("/api/admin/staff/{$admin->ma_kh}", [
+            'name' => $admin->ten_kh,
+            'email' => $admin->email,
+            'phone' => $admin->dien_thoai,
+            'role' => 'admin',
+            'active' => false,
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('role');
+
+        $this->putJson("/api/admin/staff/{$admin->ma_kh}", [
+            'name' => $admin->ten_kh,
+            'email' => $admin->email,
+            'phone' => $admin->dien_thoai,
+            'role' => 'staff',
+            'active' => true,
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('role');
+
+        $admin->refresh();
+        $this->assertTrue($admin->trang_thai);
+        $this->assertSame('admin', $admin->roleName());
+    }
 }

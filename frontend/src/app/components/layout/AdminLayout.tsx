@@ -196,7 +196,6 @@ export function AdminLayout() {
             {sidebarOpen ? <ChevronRight className="w-5 h-5 rotate-180" /> : <Menu className="w-5 h-5" />}
           </button>
           <span className="text-sm text-muted-foreground flex-1">{currentLabel}</span>
-          <Link to="/" className="text-sm text-muted-foreground">← Về trang khách hàng</Link>
         </header>
         <main className="p-6 overflow-auto"><Outlet /></main>
       </div>

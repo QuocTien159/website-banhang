@@ -76,7 +76,7 @@ class OrderController extends Controller
             'district_code' => ['required', 'string', 'max:20'],
             'ward_code' => ['required', 'string', 'max:20'],
             'address_detail' => ['required', 'string', 'max:255'],
-            'phuong_thuc_tt' => ['required', 'in:cod,banking,bank_transfer_qr,payos'],
+            'phuong_thuc_tt' => ['required', 'in:cod,bank_transfer_qr,payos'],
             'ghi_chu' => ['nullable', 'string', 'max:500'],
             'coupon_code' => ['nullable', 'string', 'max:50'],
         ]);
@@ -86,13 +86,13 @@ class OrderController extends Controller
             ->where('ma_kh', $user->ma_kh)
             ->first();
 
-        if (!$cart || $cart->chiTiets->isEmpty()) {
+        if (! $cart || $cart->chiTiets->isEmpty()) {
             return response()->json(['message' => 'Giỏ hàng trống.'], 422);
         }
 
         foreach ($cart->chiTiets as $item) {
             $variant = $item->bienThe;
-            if (!$variant || !$variant->isSellable()) {
+            if (! $variant || ! $variant->isSellable()) {
                 return response()->json(['message' => 'Biến thể sản phẩm không hợp lệ.'], 422);
             }
             if ($variant->so_luong_ton < $item->so_luong) {
@@ -117,7 +117,7 @@ class OrderController extends Controller
             ])->values()->all()
         );
 
-        if (!$shippingResult['valid']) {
+        if (! $shippingResult['valid']) {
             return response()->json(['message' => $shippingResult['message']], 422);
         }
 
@@ -136,13 +136,13 @@ class OrderController extends Controller
         ) {
             $promotion = null;
             $discount = 0;
-            if (!empty($data['coupon_code'])) {
+            if (! empty($data['coupon_code'])) {
                 $result = $promotionService->validate($data['coupon_code'], $user->ma_kh, $subtotal, true);
                 $promotion = $result['promotion'];
                 $discount = $result['discount'];
             }
 
-            $paymentMethod = $data['phuong_thuc_tt'] === 'banking' ? 'bank_transfer_qr' : $data['phuong_thuc_tt'];
+            $paymentMethod = $data['phuong_thuc_tt'];
             $address = $shippingResult['address'];
             $addressDetail = trim($data['address_detail']);
             $fullAddress = implode(', ', array_filter([
@@ -251,7 +251,7 @@ class OrderController extends Controller
             return response()->json(['message' => 'Thanh toán payOS sẽ được cập nhật tự động sau khi ngân hàng xác nhận.'], 422);
         }
 
-        if (!in_array($order->trang_thai_thanh_toan, [PaymentStatus::PENDING_PAYMENT, PaymentStatus::PAYMENT_NOT_RECEIVED], true)) {
+        if (! in_array($order->trang_thai_thanh_toan, [PaymentStatus::PENDING_PAYMENT, PaymentStatus::PAYMENT_NOT_RECEIVED], true)) {
             return response()->json(['message' => 'Trạng thái thanh toán hiện tại không cho phép báo đã chuyển khoản.'], 422);
         }
 
@@ -285,6 +285,7 @@ class OrderController extends Controller
             'id' => $order->ma_dh,
             'status' => $order->trang_thai,
             'created_at' => $order->ngay_dat?->toISOString(),
+            'successful_delivery_at' => $order->ngay_giao_thanh_cong?->toISOString(),
             'total' => (float) $order->tong_tien,
             'subtotal' => (float) ($order->tam_tinh ?? $order->tong_tien),
             'shipping' => (float) ($order->phi_van_chuyen ?? 0),
@@ -359,7 +360,7 @@ class OrderController extends Controller
     private function formatShippingTracking(DonHang $order, bool $detail): array
     {
         $shipment = $order->vanDonVanChuyen;
-        if (!$shipment) {
+        if (! $shipment) {
             return [
                 'mode' => 'legacy',
                 'provider' => $order->shipping_provider ?? 'manual',
@@ -382,12 +383,12 @@ class OrderController extends Controller
             'expected_delivery_at' => $shipment->thoi_gian_giao_du_kien?->toISOString(),
             'events' => $detail
                 ? $shipment->suKiens
-                    ->filter(fn ($event) => !$event->da_bo_qua && in_array($event->nguon, ['ghn_create', 'ghn_sync', 'ghn_webhook'], true))
+                    ->filter(fn ($event) => ! $event->da_bo_qua && in_array($event->nguon, ['ghn_create', 'ghn_sync', 'ghn_webhook'], true))
                     ->map(fn ($event) => [
-                    'status' => $event->trang_thai_van_chuyen,
-                    'raw_status' => $event->trang_thai_ghn_goc,
-                    'at' => $event->thoi_gian_su_kien?->toISOString(),
-                    'note' => $this->customerShippingNote($event->trang_thai_van_chuyen),
+                        'status' => $event->trang_thai_van_chuyen,
+                        'raw_status' => $event->trang_thai_ghn_goc,
+                        'at' => $event->thoi_gian_su_kien?->toISOString(),
+                        'note' => $this->customerShippingNote($event->trang_thai_van_chuyen),
                     ])->values()
                 : [],
         ];

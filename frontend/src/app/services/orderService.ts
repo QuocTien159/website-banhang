@@ -53,12 +53,13 @@ export interface ApiOrder {
   id: string;
   status: OrderLifecycleStatus;
   created_at: string;
+  successful_delivery_at?: string | null;
   total: number;
   subtotal?: number;
   shipping?: number;
   discount?: number;
   coupon_code?: string | null;
-  payment_method: 'cod' | 'banking' | 'bank_transfer_qr' | 'payos';
+  payment_method: 'cod' | 'bank_transfer_qr' | 'payos';
   payment_provider?: 'payos' | string | null;
   payos_order_code?: number | null;
   payment_link_id?: string | null;
@@ -102,7 +103,7 @@ export interface PlaceOrderPayload {
   district_code: string;
   ward_code: string;
   address_detail: string;
-  phuong_thuc_tt: 'cod' | 'banking' | 'bank_transfer_qr' | 'payos';
+  phuong_thuc_tt: 'cod' | 'bank_transfer_qr' | 'payos';
   ghi_chu?: string;
   coupon_code?: string;
 }
@@ -486,8 +487,20 @@ export const adminService = {
     const { data } = await apiClient.get('/admin/inventory/movements', { params });
     return data;
   },
+  async getStockAdjustments(params: Record<string, string | number> = {}) {
+    const { data } = await apiClient.get('/admin/inventory/adjustments', { params });
+    return data;
+  },
   async adjustStock(payload: { variant_id: string; stock: number; reason: string }) {
     const { data } = await apiClient.post('/admin/inventory/adjust', payload);
+    return data;
+  },
+  async approveStockAdjustment(id: string, approval_note?: string) {
+    const { data } = await apiClient.put(`/admin/inventory/adjustments/${id}/approve`, { approval_note });
+    return data;
+  },
+  async rejectStockAdjustment(id: string, approval_note?: string) {
+    const { data } = await apiClient.put(`/admin/inventory/adjustments/${id}/reject`, { approval_note });
     return data;
   },
   async getStockAlerts(params: Record<string, string | number> = {}) {

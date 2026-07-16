@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\DB;
 class RevenueAnalyticsService
 {
     private const REVENUE_STATUSES = OrderStatus::FULFILLED;
+
     private const RETURN_STATUSES = ['received', 'completed'];
 
     /**
@@ -124,7 +125,7 @@ class RevenueAnalyticsService
             ->selectRaw('order_metrics.ma_kh')
             ->selectRaw('COUNT(*) as completed_order_count')
             ->selectRaw('SUM(order_metrics.net_revenue) as net_spent')
-            ->selectRaw('MAX(order_metrics.ngay_dat) as last_order_at')
+            ->selectRaw('MAX(order_metrics.ngay_giao_thanh_cong) as last_order_at')
             ->groupBy('order_metrics.ma_kh');
     }
 
@@ -137,7 +138,7 @@ class RevenueAnalyticsService
 
     public function isRevenueEligible(DonHang $order): bool
     {
-        if (!in_array($order->trang_thai, self::REVENUE_STATUSES, true)) {
+        if (! in_array($order->trang_thai, self::REVENUE_STATUSES, true) || ! $order->ngay_giao_thanh_cong) {
             return false;
         }
 
@@ -206,7 +207,7 @@ class RevenueAnalyticsService
             ->select([
                 'dh.ma_dh',
                 'dh.ma_kh',
-                'dh.ngay_dat',
+                'dh.ngay_giao_thanh_cong',
                 'dh.tong_tien',
             ])
             ->selectRaw('COALESCE(line_totals.gross_line_total, 0) as gross_line_total')
@@ -216,7 +217,7 @@ class RevenueAnalyticsService
         $this->applyRevenueEligibility($query, 'dh');
 
         if ($from && $to) {
-            $query->whereBetween('dh.ngay_dat', [$from, $to]);
+            $query->whereBetween('dh.ngay_giao_thanh_cong', [$from, $to]);
         }
 
         return $query;
@@ -241,10 +242,7 @@ class RevenueAnalyticsService
     {
         return DB::table('yeu_cau_tra_hang as returns')
             ->join('chi_tiet_tra_hang as return_items', 'return_items.ma_yeu_cau', '=', 'returns.ma_yeu_cau')
-            ->where(function (Builder $return) {
-                $return->whereIn('returns.trang_thai', self::RETURN_STATUSES)
-                    ->orWhere('returns.trang_thai_hoan_tien', 'refunded');
-            })
+            ->whereIn('returns.trang_thai', self::RETURN_STATUSES)
             ->select('returns.ma_dh', 'return_items.ma_bien_the')
             ->selectRaw('SUM(return_items.so_luong) as returned_quantity')
             ->groupBy('returns.ma_dh', 'return_items.ma_bien_the');
@@ -269,8 +267,7 @@ class RevenueAnalyticsService
     private function returnedQuantitiesForOrder(DonHang $order): array
     {
         return $order->yeuCauTraHangs
-            ->filter(fn ($return) => in_array($return->trang_thai, self::RETURN_STATUSES, true)
-                || $return->trang_thai_hoan_tien === 'refunded')
+            ->filter(fn ($return) => in_array($return->trang_thai, self::RETURN_STATUSES, true))
             ->flatMap->chiTiets
             ->groupBy('ma_bien_the')
             ->map(fn ($items) => (int) $items->sum('so_luong'))
@@ -286,6 +283,7 @@ class RevenueAnalyticsService
 
         if ($email && str_contains($email, '@')) {
             [$local, $domain] = explode('@', $email, 2);
+
             return mb_substr($local, 0, 1).'***@'.$domain;
         }
 

@@ -128,6 +128,7 @@ class GhnFulfillmentTest extends TestCase
 
         $this->assertSame('delivered', $shipment->fresh()->trang_thai_van_chuyen);
         $this->assertSame(OrderStatus::COMPLETED, $order->fresh()->trang_thai);
+        $this->assertSame('2026-07-16 10:30:00', $order->fresh()->ngay_giao_thanh_cong?->format('Y-m-d H:i:s'));
         $this->assertSame('paid', $order->fresh()->trang_thai_thanh_toan);
         $eventCount = SuKienVanChuyen::where('ma_van_chuyen', $shipment->ma_van_chuyen)->count();
         $this->assertSame($stockBefore, (int) $variant->fresh()->so_luong_ton);
@@ -176,7 +177,7 @@ class GhnFulfillmentTest extends TestCase
 
         // Replace the setup fake so the existing successful create stub cannot
         // mask this explicit provider failure.
-        Http::swap(new HttpFactory());
+        Http::swap(new HttpFactory);
         Http::fake(function () {
             return Http::response([
                 'code' => 500,
@@ -193,7 +194,7 @@ class GhnFulfillmentTest extends TestCase
         $this->assertSame(OrderStatus::READY_TO_SHIP, $order->fresh()->trang_thai);
         $this->assertSame($stockBefore, (int) $variant->fresh()->so_luong_ton);
 
-        Http::swap(new HttpFactory());
+        Http::swap(new HttpFactory);
         $this->fakeGhn();
         $this->postJson("/api/admin/orders/{$order->ma_dh}/shipping/retry")->assertOk();
 

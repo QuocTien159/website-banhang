@@ -480,7 +480,7 @@ export function AdminDashboard() {
           <section className="grid gap-4 xl:grid-cols-[minmax(0,1.75fr)_minmax(300px,0.9fr)]">
             <Card className="gap-0 rounded-lg">
               <CardHeader className="px-5 py-4">
-                <CardTitle className="text-base">Doanh thu và đơn hoàn thành</CardTitle>
+                <CardTitle className="text-base">Doanh thu theo ngày giao thành công</CardTitle>
                 <p className="text-xs text-muted-foreground">{dashboard?.meta.revenue_rule}</p>
               </CardHeader>
               <CardContent className="px-3 pb-4 sm:px-5">

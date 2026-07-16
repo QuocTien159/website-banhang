@@ -20,6 +20,8 @@ type ReturnRequest = {
   last_processed_at?: string;
   processing_history?: { action: string; old_value?: string; new_value?: string; processed_by?: string; processed_at?: string; note?: string }[];
   created_at?: string;
+  received_at?: string;
+  refunded_at?: string;
   items_count: number;
   total_refund_estimate?: number;
   items: {
@@ -48,6 +50,18 @@ const REFUND_LABELS: Record<string, string> = {
   refunding: 'Đang hoàn tiền',
   refunded: 'Đã hoàn tiền',
   refund_failed: 'Hoàn tiền thất bại',
+};
+
+const HISTORY_ACTION_LABELS: Record<string, string> = {
+  cap_nhat_trang_thai: 'Cập nhật trạng thái',
+  cap_nhat_hoan_tien: 'Cập nhật hoàn tiền',
+};
+
+const REFUND_TRANSITIONS: Record<string, string[]> = {
+  not_refunded: ['refunding'],
+  refunding: ['refunded', 'refund_failed'],
+  refund_failed: ['refunding'],
+  refunded: [],
 };
 
 const formatPrice = (price: number) =>
@@ -110,7 +124,6 @@ export function AdminReturns() {
         status: nextStatus,
         admin_note: adminNote.trim() || undefined,
         reject_reason: rejectReason.trim() || undefined,
-        refund_status: refundStatus,
       });
       toast.success(response.message ?? 'Đã cập nhật yêu cầu trả hàng.');
       setDetail(response.return_request);
@@ -133,12 +146,17 @@ export function AdminReturns() {
       toast.success('Đã cập nhật trạng thái hoàn tiền thủ công.');
       await openDetail(detail.id);
       await load();
-    } catch {
-      toast.error('Không thể cập nhật trạng thái hoàn tiền.');
+    } catch (error: any) {
+      toast.error(error.response?.data?.message ?? 'Không thể cập nhật trạng thái hoàn tiền.');
     } finally {
       setSaving(false);
     }
   };
+
+  const refundTransitions = detail ? REFUND_TRANSITIONS[detail.refund_status] ?? [] : [];
+  const canUpdateRefund = !!detail
+    && ['received', 'completed'].includes(detail.status)
+    && refundTransitions.length > 0;
 
   return (
     <div className="space-y-5">
@@ -209,7 +227,7 @@ export function AdminReturns() {
               <section className="grid md:grid-cols-3 gap-3">
                 <div className="border rounded-xl p-3"><p className="text-xs text-muted-foreground">Trạng thái</p><p className="font-medium">{STATUS_LABELS[detail.status] ?? detail.status}</p></div>
                 <div className="border rounded-xl p-3"><p className="text-xs text-muted-foreground">Hoàn tiền</p><p className="font-medium">{REFUND_LABELS[detail.refund_status] ?? detail.refund_status}</p></div>
-                <div className="border rounded-xl p-3"><p className="text-xs text-muted-foreground">Ước tính hoàn</p><p className="font-medium">{formatPrice(detail.total_refund_estimate ?? 0)}</p></div>
+                <div className="border rounded-xl p-3"><p className="text-xs text-muted-foreground">Ước tính hoàn hàng</p><p className="font-medium">{formatPrice(detail.total_refund_estimate ?? 0)}</p><p className="mt-1 text-xs text-muted-foreground">Đã phân bổ giảm giá, chưa gồm phí giao hàng.</p></div>
               </section>
 
               <section className="border rounded-xl p-4">
@@ -218,6 +236,8 @@ export function AdminReturns() {
                 {detail.description && <p className="text-sm text-muted-foreground mt-1">{detail.description}</p>}
                 {detail.reject_reason && <p className="text-sm text-red-600 mt-2">Lý do từ chối: {detail.reject_reason}</p>}
                 {detail.last_processed_by && <p className="text-sm text-muted-foreground mt-2">Xử lý gần nhất: {detail.last_processed_by} · {formatDate(detail.last_processed_at)}</p>}
+                {detail.received_at && <p className="text-sm text-muted-foreground mt-1">Đã nhận hàng trả: {formatDate(detail.received_at)}</p>}
+                {detail.refunded_at && <p className="text-sm text-muted-foreground mt-1">Đã hoàn tiền: {formatDate(detail.refunded_at)}</p>}
               </section>
 
               {detail.processing_history && detail.processing_history.length > 0 && (
@@ -226,7 +246,7 @@ export function AdminReturns() {
                   <div className="space-y-2">
                     {detail.processing_history.map((history, index) => (
                       <div key={index} className="text-sm border-b last:border-0 pb-2 last:pb-0">
-                        <p className="font-medium">{history.action}: {history.old_value ?? '-'} → {history.new_value ?? '-'}</p>
+                        <p className="font-medium">{HISTORY_ACTION_LABELS[history.action] ?? history.action}: {history.old_value ?? '-'} → {history.new_value ?? '-'}</p>
                         <p className="text-xs text-muted-foreground">{history.processed_by ?? 'N/A'} · {formatDate(history.processed_at)}</p>
                         {history.note && <p className="text-xs mt-1">{history.note}</p>}
                       </div>
@@ -269,23 +289,25 @@ export function AdminReturns() {
                   <span className="text-sm">Ghi chú admin</span>
                   <textarea value={adminNote} onChange={(event) => setAdminNote(event.target.value)} rows={3} className="w-full border rounded-lg p-2 text-sm" />
                 </label>
-                <label className="block space-y-1">
+                {detail.status === 'pending' && <label className="block space-y-1">
                   <span className="text-sm">Lý do từ chối</span>
                   <input value={rejectReason} onChange={(event) => setRejectReason(event.target.value)} className="w-full border rounded-lg p-2 text-sm" />
-                </label>
-                <label className="block space-y-1">
+                </label>}
+                {canUpdateRefund && <label className="block space-y-1">
                   <span className="text-sm">Trạng thái hoàn tiền thủ công</span>
                   <select value={refundStatus} onChange={(event) => setRefundStatus(event.target.value)} className="w-full border rounded-lg p-2 text-sm">
-                    {Object.entries(REFUND_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                    <option value={detail.refund_status}>{REFUND_LABELS[detail.refund_status] ?? detail.refund_status}</option>
+                    {refundTransitions.map((value) => <option key={value} value={value}>{REFUND_LABELS[value] ?? value}</option>)}
                   </select>
-                </label>
+                </label>}
                 <div className="flex flex-wrap gap-2">
                   {detail.status === 'pending' && <Button onClick={() => updateStatus('approved')} disabled={saving}>Duyệt</Button>}
                   {detail.status === 'pending' && <Button variant="outline" onClick={() => updateStatus('rejected')} disabled={saving}>Từ chối</Button>}
-                  {['approved', 'pending'].includes(detail.status) && <Button className="bg-orange-600 hover:bg-orange-700" onClick={() => updateStatus('received')} disabled={saving}><PackageCheck className="w-4 h-4 mr-2" />Đã nhận hàng trả</Button>}
+                  {detail.status === 'approved' && <Button className="bg-orange-600 hover:bg-orange-700" onClick={() => updateStatus('received')} disabled={saving}><PackageCheck className="w-4 h-4 mr-2" />Đã nhận hàng trả</Button>}
                   {detail.status === 'received' && <Button onClick={() => updateStatus('completed')} disabled={saving}>Hoàn tất</Button>}
-                  <Button variant="outline" onClick={updateRefund} disabled={saving}>Lưu trạng thái hoàn tiền</Button>
+                  {canUpdateRefund && <Button variant="outline" onClick={updateRefund} disabled={saving}>Lưu trạng thái hoàn tiền</Button>}
                 </div>
+                {!['received', 'completed'].includes(detail.status) && <p className="text-xs text-muted-foreground">Chỉ có thể cập nhật hoàn tiền sau khi đã nhận hàng trả về kho.</p>}
               </section>
             </div>
           </div>

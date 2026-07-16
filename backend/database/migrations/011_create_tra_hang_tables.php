@@ -13,7 +13,7 @@ return new class extends Migration
             $table->char('ma_dh', 10);
             $table->text('ly_do');
             $table->char('trang_thai', 20)->default('pending')
-                ->comment('pending|approved|rejected|refunded');
+                ->comment('pending|approved|received|completed|rejected|cancelled');
             $table->dateTime('ngay_yeu_cau');
 
             $table->foreign('ma_dh')->references('ma_dh')->on('don_hang')->onDelete('cascade');

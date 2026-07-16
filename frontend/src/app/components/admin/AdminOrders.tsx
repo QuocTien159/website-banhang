@@ -233,7 +233,7 @@ export function AdminOrders() {
   const renderActions = (order: AdminOrder) => {
     const busy = updating?.startsWith(`${order.id}:`);
     const isPayosWaitingPayment = order.paymentProvider === 'payos' && order.paymentStatus !== 'paid';
-    const isManualTransfer = (order.paymentMethod === 'bank_transfer_qr' || order.paymentMethod === 'banking') && order.paymentProvider !== 'payos';
+    const isManualTransfer = order.paymentMethod === 'bank_transfer_qr' && order.paymentProvider !== 'payos';
     const carrierTerminal = ['delivered', 'cancelled', 'returned'].includes(order.shipping.status ?? '');
     const canCancelInternally = ['pending', 'confirmed', 'preparing', 'ready_to_ship'].includes(order.status) && !order.shipping.tracking_code;
 

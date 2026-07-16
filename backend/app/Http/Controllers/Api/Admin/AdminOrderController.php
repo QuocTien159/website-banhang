@@ -86,7 +86,7 @@ class AdminOrderController extends Controller
         $oldStatus = $order->trang_thai;
         $targetStatus = $data['status'];
 
-        if (!$this->canMoveInternalStatus($oldStatus, $targetStatus)) {
+        if (! $this->canMoveInternalStatus($oldStatus, $targetStatus)) {
             return response()->json([
                 'message' => 'Thao tác này không hợp lệ. Trạng thái giao hàng phải được GHN cập nhật tự động.',
             ], 422);
@@ -140,7 +140,7 @@ class AdminOrderController extends Controller
     public function retryGhnShipment(Request $request, string $id, GhnShipmentService $shipmentService)
     {
         $shipment = VanDonVanChuyen::where('ma_dh', $id)->first();
-        if (!$shipment || !$shipment->canRetryCreation()) {
+        if (! $shipment || ! $shipment->canRetryCreation()) {
             return response()->json(['message' => 'Đơn không có vận đơn GHN lỗi để tạo lại.'], 422);
         }
 
@@ -306,6 +306,7 @@ class AdminOrderController extends Controller
             'date' => $order->ngay_dat?->format('d/m/Y H:i'),
             'created_at' => $order->ngay_dat?->toISOString(),
             'created_at_formatted' => $order->ngay_dat?->format('d/m/Y H:i'),
+            'successful_delivery_at' => $order->ngay_giao_thanh_cong?->toISOString(),
             'total' => (float) $order->tong_tien,
             'status' => $order->trang_thai,
             'payment' => $order->phuong_thuc_tt,
@@ -370,7 +371,7 @@ class AdminOrderController extends Controller
 
     private function formatShipment(?VanDonVanChuyen $shipment, bool $includeEvents = false): array
     {
-        if (!$shipment) {
+        if (! $shipment) {
             return [
                 'mode' => 'legacy',
                 'provider' => 'ghn',
@@ -400,13 +401,13 @@ class AdminOrderController extends Controller
                 ? $shipment->suKiens
                     ->filter(fn ($event) => in_array($event->nguon, ['ghn_create', 'ghn_sync', 'ghn_webhook'], true))
                     ->map(fn ($event) => [
-                    'id' => $event->ma_su_kien,
-                    'source' => $event->nguon,
-                    'raw_status' => $event->trang_thai_ghn_goc,
-                    'status' => $event->trang_thai_van_chuyen,
-                    'at' => $event->thoi_gian_su_kien?->toISOString(),
-                    'note' => $event->ghi_chu,
-                    'ignored' => (bool) $event->da_bo_qua,
+                        'id' => $event->ma_su_kien,
+                        'source' => $event->nguon,
+                        'raw_status' => $event->trang_thai_ghn_goc,
+                        'status' => $event->trang_thai_van_chuyen,
+                        'at' => $event->thoi_gian_su_kien?->toISOString(),
+                        'note' => $event->ghi_chu,
+                        'ignored' => (bool) $event->da_bo_qua,
                     ])->values()
                 : [],
         ];

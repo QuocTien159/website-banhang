@@ -5,9 +5,11 @@ frontend/.env
 frontend/.env.local
 .pnpm-store/
 
-# Local documentation and development tools
+# Thesis documentation and auxiliary local tools
 /docs/
 /tools/
+/.codex-doc-work/
+/*.docx
 
 # Backend
 backend/vendor/

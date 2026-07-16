@@ -6,12 +6,11 @@ use App\Models\BienTheSanPham;
 use App\Models\GioHang;
 use App\Models\KhachHang;
 use App\Models\LichSuBienDongKho;
-use App\Models\PhieuNhapKho;
-use Laravel\Sanctum\Sanctum;
-use Tests\TestCase;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Schema;
+use Laravel\Sanctum\Sanctum;
+use Tests\TestCase;
 
 class InventoryManagementTest extends TestCase
 {
@@ -34,6 +33,21 @@ class InventoryManagementTest extends TestCase
         $this->assertTrue(Schema::hasColumn('phieu_nhap_kho', 'ma_nguoi_duyet'));
         $this->assertTrue(Schema::hasColumn('phieu_nhap_kho', 'ngay_duyet'));
         $this->assertTrue(Schema::hasColumn('phieu_nhap_kho', 'ghi_chu_duyet'));
+    }
+
+    public function test_inventory_adjustment_request_schema_exists(): void
+    {
+        $this->assertTrue(Schema::hasTable('yeu_cau_dieu_chinh_kho'));
+        $this->assertTrue(Schema::hasColumns('yeu_cau_dieu_chinh_kho', [
+            'ma_ycdck',
+            'ma_bien_the',
+            'ton_kho_tai_luc_tao',
+            'ton_kho_de_xuat',
+            'trang_thai',
+            'ma_nguoi_tao',
+            'ma_nguoi_duyet',
+            'ngay_duyet',
+        ]));
     }
 
     private function createStaff(): KhachHang
@@ -179,6 +193,56 @@ class InventoryManagementTest extends TestCase
             'ma_bien_the' => $variant->ma_bt,
             'loai_bien_dong' => 'manual_adjustment',
             'ton_kho_sau' => $target,
+        ]);
+    }
+
+    public function test_staff_adjustment_waits_for_admin_approval_before_stock_is_changed(): void
+    {
+        $staff = $this->createStaff();
+        $variant = BienTheSanPham::firstOrFail();
+        $stockBefore = (int) $variant->so_luong_ton;
+        $targetStock = $stockBefore + 5;
+
+        Sanctum::actingAs($staff);
+        $adjustmentId = $this->postJson('/api/admin/inventory/adjust', [
+            'variant_id' => $variant->ma_bt,
+            'stock' => $targetStock,
+            'reason' => 'Kiểm kê cuối ca chênh lệch năm sản phẩm.',
+        ])
+            ->assertStatus(202)
+            ->assertJsonPath('adjustment.status', 'pending')
+            ->assertJsonPath('adjustment.stock_at_request', $stockBefore)
+            ->assertJsonPath('adjustment.requested_stock', $targetStock)
+            ->json('adjustment.id');
+
+        $this->assertSame($stockBefore, (int) $variant->fresh()->so_luong_ton);
+        $this->assertDatabaseHas('yeu_cau_dieu_chinh_kho', [
+            'ma_ycdck' => $adjustmentId,
+            'ma_nguoi_tao' => $staff->ma_kh,
+            'trang_thai' => 'pending',
+        ]);
+        $this->assertSame(0, LichSuBienDongKho::where('ma_tham_chieu', $adjustmentId)->count());
+
+        $this->putJson("/api/admin/inventory/adjustments/{$adjustmentId}/approve")->assertForbidden();
+
+        Sanctum::actingAs($this->admin);
+        $this->putJson("/api/admin/inventory/adjustments/{$adjustmentId}/approve", [
+            'approval_note' => 'Đã đối chiếu biên bản kiểm kê.',
+        ])
+            ->assertOk()
+            ->assertJsonPath('adjustment.status', 'approved');
+
+        $this->assertSame($targetStock, (int) $variant->fresh()->so_luong_ton);
+        $this->assertDatabaseHas('yeu_cau_dieu_chinh_kho', [
+            'ma_ycdck' => $adjustmentId,
+            'trang_thai' => 'approved',
+            'ma_nguoi_duyet' => $this->admin->ma_kh,
+        ]);
+        $this->assertDatabaseHas('lich_su_bien_dong_kho', [
+            'ma_bien_the' => $variant->ma_bt,
+            'loai_bien_dong' => 'manual_adjustment',
+            'ma_nguoi_thuc_hien' => $this->admin->ma_kh,
+            'ma_tham_chieu' => $adjustmentId,
         ]);
     }
 

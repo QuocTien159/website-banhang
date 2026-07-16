@@ -51,7 +51,8 @@ class InventoryService
         string $variantId,
         int $targetStock,
         string $actorId,
-        string $reason
+        string $reason,
+        ?string $reference = 'ADJUST'
     ): BienTheSanPham {
         $variant = BienTheSanPham::where('ma_bt', $variantId)->lockForUpdate()->firstOrFail();
         $change = $targetStock - (int) $variant->so_luong_ton;
@@ -60,6 +61,6 @@ class InventoryService
             throw ValidationException::withMessages(['stock' => 'Tồn kho mới không thay đổi so với hiện tại.']);
         }
 
-        return $this->changeStock($variantId, $change, 'manual_adjustment', $actorId, $reason, 'ADJUST');
+        return $this->changeStock($variantId, $change, 'manual_adjustment', $actorId, $reason, $reference);
     }
 }

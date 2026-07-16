@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Edit2, Eye, EyeOff, Loader2, Plus, Search, ShieldCheck } from 'lucide-react';
 import { toast } from 'sonner';
 import { adminService, type AdminStaff as Staff, type AdminStaffPayload } from '../../services/orderService';
+import { useAuth } from '../../store/AppContext';
 import { Button } from '../ui/button';
 
 const emptyForm: AdminStaffPayload = {
@@ -25,6 +26,7 @@ const formatDate = (value?: string | null) => {
 };
 
 export function AdminStaff() {
+  const { user: currentUser } = useAuth();
   const [items, setItems] = useState<Staff[]>([]);
   const [search, setSearch] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -32,6 +34,7 @@ export function AdminStaff() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const isEditingOwnAccount = editingId !== null && String(editingId) === String(currentUser?.id);
 
   const load = async () => {
     setLoading(true);
@@ -172,20 +175,24 @@ export function AdminStaff() {
                           <button onClick={() => edit(staff)} className="p-2 text-blue-600">
                             <Edit2 className="w-4 h-4" />
                           </button>
-                          <button
-                            onClick={async () => {
-                              if (!confirm(`${staff.active ? 'Khóa' : 'Mở khóa'} tài khoản "${staff.name}"?`)) return;
-                              try {
-                                await adminService.toggleStaffStatus(staff.id);
-                                await load();
-                              } catch (error: any) {
-                                toast.error(errorMessage(error, 'Không thể đổi trạng thái nhân viên.'));
-                              }
-                            }}
-                            className={`text-xs px-2 py-1 rounded-lg border ${staff.active ? 'border-red-200 text-red-600' : 'border-green-200 text-green-700'}`}
-                          >
-                            {staff.active ? 'Khóa' : 'Mở khóa'}
-                          </button>
+                          {String(staff.id) === String(currentUser?.id) ? (
+                            <span className="self-center text-xs text-muted-foreground">Tài khoản hiện tại</span>
+                          ) : (
+                            <button
+                              onClick={async () => {
+                                if (!confirm(`${staff.active ? 'Khóa' : 'Mở khóa'} tài khoản "${staff.name}"?`)) return;
+                                try {
+                                  await adminService.toggleStaffStatus(staff.id);
+                                  await load();
+                                } catch (error: any) {
+                                  toast.error(errorMessage(error, 'Không thể đổi trạng thái nhân viên.'));
+                                }
+                              }}
+                              className={`text-xs px-2 py-1 rounded-lg border ${staff.active ? 'border-red-200 text-red-600' : 'border-green-200 text-green-700'}`}
+                            >
+                              {staff.active ? 'Khóa' : 'Mở khóa'}
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -233,18 +240,33 @@ export function AdminStaff() {
             </label>
             <label className="block text-sm">
               Vai trò
-              <select value={form.role} onChange={(event) => setForm({ ...form, role: event.target.value as AdminStaffPayload['role'] })} className="mt-1 w-full border rounded-lg px-3 py-2">
+              <select
+                value={form.role}
+                onChange={(event) => setForm({ ...form, role: event.target.value as AdminStaffPayload['role'] })}
+                disabled={isEditingOwnAccount}
+                className="mt-1 w-full border rounded-lg px-3 py-2 disabled:cursor-not-allowed disabled:bg-gray-100"
+              >
                 <option value="staff">Nhân viên</option>
                 <option value="admin">Admin</option>
               </select>
             </label>
             <label className="block text-sm">
               Trạng thái
-              <select value={form.active ? '1' : '0'} onChange={(event) => setForm({ ...form, active: event.target.value === '1' })} className="mt-1 w-full border rounded-lg px-3 py-2">
+              <select
+                value={form.active ? '1' : '0'}
+                onChange={(event) => setForm({ ...form, active: event.target.value === '1' })}
+                disabled={isEditingOwnAccount}
+                className="mt-1 w-full border rounded-lg px-3 py-2 disabled:cursor-not-allowed disabled:bg-gray-100"
+              >
                 <option value="1">Hoạt động</option>
                 <option value="0">Khóa</option>
               </select>
             </label>
+            {isEditingOwnAccount && (
+              <p className="text-xs text-muted-foreground">
+                Không thể tự thay đổi quyền hoặc khóa tài khoản hiện tại.
+              </p>
+            )}
             <div className="flex gap-2">
               {editingId && <Button variant="outline" onClick={reset}>Hủy</Button>}
               <Button onClick={save} disabled={saving || !form.name.trim() || !form.email.trim()} className="flex-1 bg-orange-600 hover:bg-orange-700">

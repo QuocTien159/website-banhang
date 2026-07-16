@@ -12,8 +12,8 @@ use App\Models\SanPham;
 use App\Models\YeuCauTraHang;
 use App\Support\PaymentStatus;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -24,6 +24,7 @@ class AdminRevenueReportTest extends TestCase
     protected bool $seed = true;
 
     private KhachHang $admin;
+
     private KhachHang $customer;
 
     protected function setUp(): void
@@ -67,7 +68,7 @@ class AdminRevenueReportTest extends TestCase
         $this->assertSame(1, $response->json("monthly.{$monthIndex}.orders"));
         $this->assertEquals(250000, $response->json('total_revenue'));
 
-        $pending->update(['trang_thai' => 'delivered']);
+        $pending->update(['trang_thai' => 'delivered', 'ngay_giao_thanh_cong' => now()]);
 
         $response = $this->getJson('/api/admin/reports/revenue?year='.now()->year)
             ->assertOk();
@@ -117,6 +118,25 @@ class AdminRevenueReportTest extends TestCase
             ->assertJsonCount(0, 'top_customers');
     }
 
+    public function test_revenue_uses_successful_delivery_date_instead_of_order_date(): void
+    {
+        $placedYesterday = now()->subDay()->startOfDay()->addHours(9);
+        $deliveredToday = now()->startOfDay()->addHours(15);
+        $order = $this->createOrder('completed', 275000, $placedYesterday);
+        $order->update(['ngay_giao_thanh_cong' => $deliveredToday]);
+
+        $today = now()->toDateString();
+        $yesterday = now()->subDay()->toDateString();
+
+        $this->getJson("/api/admin/reports/dashboard?from={$today}&to={$today}")
+            ->assertOk()
+            ->assertJsonPath('kpis.revenue.value', 275000);
+
+        $this->getJson("/api/admin/reports/dashboard?from={$yesterday}&to={$yesterday}")
+            ->assertOk()
+            ->assertJsonPath('kpis.revenue.value', 0);
+    }
+
     public function test_staff_cannot_access_operational_dashboard(): void
     {
         $staff = KhachHang::create([
@@ -164,12 +184,12 @@ class AdminRevenueReportTest extends TestCase
 
         $this->createOrderWithLines($otherCustomer, [
             ['variant' => $betaVariant, 'quantity' => 4, 'unit_price' => 250000],
-        ], 1000000, 'completed', null, 'banking', PaymentStatus::PENDING_PAYMENT);
+        ], 1000000, 'completed', null, 'bank_transfer_qr', PaymentStatus::PENDING_PAYMENT);
 
         $fullyReturned = $this->createOrderWithLines($otherCustomer, [
             ['variant' => $betaVariant, 'quantity' => 1, 'unit_price' => 200000],
         ], 200000, 'delivered');
-        $this->recordReturn($fullyReturned, $betaVariant, 1, 'approved', 'refunded');
+        $this->recordReturn($fullyReturned, $betaVariant, 1, 'received');
 
         $response = $this->getJson('/api/admin/reports/dashboard?from='.now()->toDateString().'&to='.now()->toDateString())
             ->assertOk()
@@ -316,9 +336,12 @@ class AdminRevenueReportTest extends TestCase
 
     private function createOrder(string $status, int $total, $date = null): DonHang
     {
+        $orderedAt = $date ?? now();
+
         return DonHang::create([
             'ma_kh' => $this->customer->ma_kh,
-            'ngay_dat' => $date ?? now(),
+            'ngay_dat' => $orderedAt,
+            'ngay_giao_thanh_cong' => in_array($status, ['completed', 'delivered'], true) ? $orderedAt : null,
             'tong_tien' => $total,
             'phuong_thuc_tt' => 'cod',
             'dia_chi_giao' => 'Khách Test | 0909123456 | TP HCM',
@@ -376,9 +399,11 @@ class AdminRevenueReportTest extends TestCase
         string $paymentMethod = 'cod',
         ?string $paymentStatus = null,
     ): DonHang {
+        $orderedAt = $date ?? now();
         $attributes = [
             'ma_kh' => $customer->ma_kh,
-            'ngay_dat' => $date ?? now(),
+            'ngay_dat' => $orderedAt,
+            'ngay_giao_thanh_cong' => in_array($status, ['completed', 'delivered'], true) ? $orderedAt : null,
             'tong_tien' => $total,
             'phuong_thuc_tt' => $paymentMethod,
             'dia_chi_giao' => 'Analytics Test | 0909123456 | Ho Chi Minh City',
@@ -407,8 +432,7 @@ class AdminRevenueReportTest extends TestCase
         int $quantity,
         string $status,
         ?string $refundStatus = null,
-    ): void
-    {
+    ): void {
         $attributes = [
             'ma_dh' => $order->ma_dh,
             'ma_kh' => $order->ma_kh,

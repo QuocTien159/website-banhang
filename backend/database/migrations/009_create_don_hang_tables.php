@@ -13,7 +13,7 @@ return new class extends Migration
             $table->char('ma_kh', 10);
             $table->dateTime('ngay_dat');
             $table->decimal('tong_tien', 12, 2);
-            $table->string('phuong_thuc_tt', 20)->comment('cod|banking');
+            $table->string('phuong_thuc_tt', 20)->comment('cod|bank_transfer_qr|payos');
             $table->string('dia_chi_giao', 255);
             $table->char('trang_thai', 20)->default('pending')
                 ->comment('pending|confirmed|shipping|delivered|cancelled');

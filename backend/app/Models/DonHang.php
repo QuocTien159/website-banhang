@@ -2,23 +2,27 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
 use App\Traits\GeneratesCustomId;
+use Illuminate\Database\Eloquent\Model;
 
 class DonHang extends Model
 {
     use GeneratesCustomId;
 
     protected $table = 'don_hang';
+
     protected $primaryKey = 'ma_dh';
+
     public $incrementing = false;
+
     protected $keyType = 'string';
+
     public $timestamps = false;
 
     public static string $idPrefix = 'DH';
 
     protected $fillable = [
-        'ma_dh', 'ma_kh', 'ngay_dat', 'tam_tinh', 'phi_van_chuyen',
+        'ma_dh', 'ma_kh', 'ngay_dat', 'ngay_giao_thanh_cong', 'tam_tinh', 'phi_van_chuyen',
         'loai_khu_vuc_giao', 'shipping_zone', 'ma_km', 'ma_khuyen_mai', 'so_tien_giam', 'tong_tien',
         'shipping_provider', 'shipping_service_id', 'shipping_service_type_id', 'shipping_service_name',
         'shipping_order_code', 'shipping_status', 'shipping_fee_breakdown', 'shipping_expected_delivery_at',
@@ -32,6 +36,7 @@ class DonHang extends Model
 
     protected $casts = [
         'ngay_dat' => 'datetime',
+        'ngay_giao_thanh_cong' => 'datetime',
         'tong_tien' => 'decimal:2',
         'tam_tinh' => 'decimal:2',
         'phi_van_chuyen' => 'decimal:2',

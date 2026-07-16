@@ -27,8 +27,7 @@ class GhnShipmentService
     public function __construct(
         private readonly GhnShippingService $ghn,
         private readonly GhnShipmentStatusMapper $statusMapper,
-    ) {
-    }
+    ) {}
 
     public function handoff(string $orderId, ?string $actorId, bool $retry = false): VanDonVanChuyen
     {
@@ -59,7 +58,7 @@ class GhnShipmentService
             }
 
             $payload = $this->buildCreatePayload($order, $setting);
-            if (!$shipment) {
+            if (! $shipment) {
                 $shipment = VanDonVanChuyen::create([
                     'ma_dh' => $order->ma_dh,
                     'nha_van_chuyen' => 'ghn',
@@ -120,14 +119,14 @@ class GhnShipmentService
 
         /** @var VanDonVanChuyen $shipment */
         $shipment = $context['shipment'];
-        if (!$context['payload']) {
+        if (! $context['payload']) {
             return $shipment;
         }
 
         try {
             $response = $this->ghn->createOrder($context['payload'], $setting);
             $orderCode = $this->providerOrderCode($response);
-            if (!$orderCode) {
+            if (! $orderCode) {
                 throw new RuntimeException('GHN không trả về mã vận đơn.');
             }
 
@@ -169,7 +168,7 @@ class GhnShipmentService
     public function sync(string $orderId, ?string $actorId = null): VanDonVanChuyen
     {
         $shipment = VanDonVanChuyen::where('ma_dh', $orderId)->firstOrFail();
-        if (!$shipment->ma_van_don_ghn) {
+        if (! $shipment->ma_van_don_ghn) {
             throw ValidationException::withMessages([
                 'shipping' => 'Đơn chưa có mã vận đơn GHN để đồng bộ.',
             ]);
@@ -194,7 +193,7 @@ class GhnShipmentService
     public function requestCancellation(string $orderId, ?string $actorId): VanDonVanChuyen
     {
         $shipment = VanDonVanChuyen::where('ma_dh', $orderId)->firstOrFail();
-        if (!$shipment->ma_van_don_ghn) {
+        if (! $shipment->ma_van_don_ghn) {
             throw ValidationException::withMessages(['shipping' => 'Đơn chưa có vận đơn GHN để yêu cầu hủy.']);
         }
         if ($shipment->isTerminal()) {
@@ -247,7 +246,7 @@ class GhnShipmentService
         $orderCode = $this->providerOrderCode($payload);
         $clientOrderCode = $this->clientOrderCode($payload);
 
-        if (!$orderCode && !$clientOrderCode) {
+        if (! $orderCode && ! $clientOrderCode) {
             throw ValidationException::withMessages(['shipping' => 'Webhook GHN thiếu mã vận đơn.']);
         }
 
@@ -257,21 +256,21 @@ class GhnShipmentService
             ? VanDonVanChuyen::where('ma_van_don_ghn', $orderCode)->first()
             : null;
 
-        if (!$shipment && $clientOrderCode) {
+        if (! $shipment && $clientOrderCode) {
             $shipment = VanDonVanChuyen::where('ma_don_khach_hang', $clientOrderCode)->first();
         }
 
-        if (!$shipment) {
+        if (! $shipment) {
             return null;
         }
 
-        if ($shipment->ma_van_don_ghn && $orderCode && !hash_equals($shipment->ma_van_don_ghn, $orderCode)) {
+        if ($shipment->ma_van_don_ghn && $orderCode && ! hash_equals($shipment->ma_van_don_ghn, $orderCode)) {
             throw ValidationException::withMessages([
                 'shipping' => 'Webhook GHN có mã vận đơn không khớp với đơn hàng đã lưu.',
             ]);
         }
 
-        if ($clientOrderCode && !hash_equals($shipment->ma_don_khach_hang, $clientOrderCode)) {
+        if ($clientOrderCode && ! hash_equals($shipment->ma_don_khach_hang, $clientOrderCode)) {
             throw ValidationException::withMessages([
                 'shipping' => 'Webhook GHN có mã đơn khách hàng không khớp.',
             ]);
@@ -360,7 +359,7 @@ class GhnShipmentService
                 'shipping_fee_breakdown' => $feeBreakdown,
             ]);
 
-            $this->applyInternalStatusFromShipping($order, $shipment->fresh(), $normalizedStatus, $source, $actorId);
+            $this->applyInternalStatusFromShipping($order, $shipment->fresh(), $normalizedStatus, $source, $actorId, $eventTime);
 
             return $shipment->fresh();
         });
@@ -368,7 +367,7 @@ class GhnShipmentService
 
     private function assertCanHandoff(DonHang $order, PaymentShippingSetting $setting): void
     {
-        if (!in_array($order->trang_thai, [OrderStatus::PREPARING, OrderStatus::READY_TO_SHIP], true)) {
+        if (! in_array($order->trang_thai, [OrderStatus::PREPARING, OrderStatus::READY_TO_SHIP], true)) {
             throw ValidationException::withMessages([
                 'shipping' => 'Chỉ đơn đang chuẩn bị hoặc sẵn sàng bàn giao mới có thể tạo vận đơn GHN.',
             ]);
@@ -380,13 +379,13 @@ class GhnShipmentService
             ]);
         }
 
-        if ($setting->shipping_provider !== 'ghn' || !$setting->ghn_enabled) {
+        if ($setting->shipping_provider !== 'ghn' || ! $setting->ghn_enabled) {
             throw ValidationException::withMessages(['shipping' => 'Vận chuyển GHN hiện chưa được bật trong cấu hình quản trị.']);
         }
-        if (!$this->ghn->isConfigured($setting)) {
+        if (! $this->ghn->isConfigured($setting)) {
             throw ValidationException::withMessages(['shipping' => 'Thiếu cấu hình GHN (Token hoặc Shop ID).']);
         }
-        if (!$this->ghn->hasFulfillmentPickupAddress($setting)) {
+        if (! $this->ghn->hasFulfillmentPickupAddress($setting)) {
             throw ValidationException::withMessages(['shipping' => 'Thiếu thông tin kho lấy hàng GHN: tên, số điện thoại hoặc địa chỉ.']);
         }
     }
@@ -404,11 +403,11 @@ class GhnShipmentService
             'district_code' => $order->ma_quan_huyen,
             'ward_code' => $order->ma_phuong_xa,
         ] as $field => $value) {
-            if (!filled($value)) {
+            if (! filled($value)) {
                 $errors[$field] = 'Thông tin giao hàng GHN còn thiếu.';
             }
         }
-        if (!$order->chiTiets->count()) {
+        if (! $order->chiTiets->count()) {
             $errors['items'] = 'Đơn hàng chưa có sản phẩm để tạo vận đơn GHN.';
         }
         if ($errors) {
@@ -505,7 +504,7 @@ class GhnShipmentService
     {
         DB::transaction(function () use ($shipmentId, $exception) {
             $shipment = VanDonVanChuyen::where('ma_van_chuyen', $shipmentId)->lockForUpdate()->first();
-            if (!$shipment || $shipment->ma_van_don_ghn) {
+            if (! $shipment || $shipment->ma_van_don_ghn) {
                 return;
             }
 
@@ -539,7 +538,7 @@ class GhnShipmentService
     {
         DB::transaction(function () use ($shipmentId, $exception) {
             $shipment = VanDonVanChuyen::where('ma_van_chuyen', $shipmentId)->lockForUpdate()->first();
-            if (!$shipment || $shipment->ma_van_don_ghn) {
+            if (! $shipment || $shipment->ma_van_don_ghn) {
                 return;
             }
 
@@ -567,6 +566,7 @@ class GhnShipmentService
         ?string $shippingStatus,
         string $source,
         ?string $actorId,
+        Carbon $eventTime,
     ): void {
         $nextStatus = null;
         $note = null;
@@ -600,10 +600,20 @@ class GhnShipmentService
             $note = 'GHN đã hoàn hàng; chờ kho xác nhận trước khi nhập lại tồn.';
         }
 
-        if ($nextStatus && $nextStatus !== $order->trang_thai) {
+        $statusChanged = $nextStatus && $nextStatus !== $order->trang_thai;
+        $needsDeliveryDate = $nextStatus === OrderStatus::COMPLETED && ! $order->ngay_giao_thanh_cong;
+
+        if ($statusChanged || $needsDeliveryDate) {
             $oldStatus = $order->trang_thai;
-            $order->update(['trang_thai' => $nextStatus]);
-            $this->recordOrderHistory($order, $oldStatus, $nextStatus, $actorId, $source, $shipment->ma_van_chuyen, $note);
+            $updates = ['trang_thai' => $nextStatus];
+            if ($nextStatus === OrderStatus::COMPLETED) {
+                $updates['ngay_giao_thanh_cong'] = $eventTime;
+            }
+            $order->update($updates);
+
+            if ($statusChanged) {
+                $this->recordOrderHistory($order, $oldStatus, $nextStatus, $actorId, $source, $shipment->ma_van_chuyen, $note);
+            }
         }
     }
 
@@ -659,7 +669,7 @@ class GhnShipmentService
         } catch (QueryException $exception) {
             // The unique payload hash makes duplicate callbacks harmless.
             $message = strtolower($exception->getMessage());
-            if (!str_contains($message, 'duplicate') && !str_contains($message, 'unique constraint')) {
+            if (! str_contains($message, 'duplicate') && ! str_contains($message, 'unique constraint')) {
                 throw $exception;
             }
         }

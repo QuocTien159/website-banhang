@@ -3,10 +3,10 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\ChiTietDonHang;
 use App\Models\ChiTietTraHang;
 use App\Models\DonHang;
 use App\Models\HinhAnhTraHang;
+use App\Models\LichSuXuLyTraHang;
 use App\Models\YeuCauTraHang;
 use App\Support\OrderStatus;
 use Illuminate\Http\Request;
@@ -19,7 +19,7 @@ class ReturnRequestController extends Controller
 {
     public function index(Request $request)
     {
-        $returns = YeuCauTraHang::with(['donHang', 'chiTiets.bienThe', 'hinhAnhs'])
+        $returns = YeuCauTraHang::with(['donHang', 'chiTiets.bienThe.sanPham.anhChinh', 'hinhAnhs'])
             ->where('ma_kh', $request->user()->ma_kh)
             ->orderByDesc('ngay_yeu_cau')
             ->get();
@@ -29,7 +29,7 @@ class ReturnRequestController extends Controller
 
     public function show(Request $request, string $id)
     {
-        $return = YeuCauTraHang::with(['donHang', 'chiTiets.bienThe', 'hinhAnhs'])
+        $return = YeuCauTraHang::with(['donHang', 'chiTiets.bienThe.sanPham.anhChinh', 'hinhAnhs'])
             ->where('ma_kh', $request->user()->ma_kh)
             ->where('ma_yeu_cau', $id)
             ->firstOrFail();
@@ -67,45 +67,44 @@ class ReturnRequestController extends Controller
         ]);
 
         $user = $request->user();
-        $order = DonHang::with('chiTiets.bienThe')
-            ->where('ma_dh', $data['order_id'])
-            ->where('ma_kh', $user->ma_kh)
-            ->firstOrFail();
-
-        if (!OrderStatus::isFulfilled($order->trang_thai)) {
-            throw ValidationException::withMessages(['order_id' => 'Chỉ đơn đã giao thành công mới được yêu cầu trả hàng.']);
-        }
-
-        if ($order->yeuCauTraHangs()->where('trang_thai', 'pending')->exists()) {
-            throw ValidationException::withMessages(['order_id' => 'Đơn hàng đang có yêu cầu trả hàng chờ xử lý.']);
-        }
-
         $items = collect($data['items']);
         if ($items->pluck('variant_id')->unique()->count() !== $items->count()) {
             throw ValidationException::withMessages(['items' => 'Không được chọn trùng cùng một sản phẩm trong yêu cầu trả hàng.']);
         }
 
-        foreach ($items as $index => $item) {
-            $orderItem = $order->chiTiets->firstWhere('ma_bien_the', $item['variant_id']);
-            if (!$orderItem) {
-                throw ValidationException::withMessages(["items.{$index}.variant_id" => 'Sản phẩm không thuộc đơn hàng này.']);
+        $return = DB::transaction(function () use ($data, $user, $items) {
+            // Locking the order serializes return requests for the same order,
+            // so two submissions cannot reserve the same item quantity.
+            $order = DonHang::with('chiTiets.bienThe')
+                ->where('ma_dh', $data['order_id'])
+                ->where('ma_kh', $user->ma_kh)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            if (! OrderStatus::isFulfilled($order->trang_thai)) {
+                throw ValidationException::withMessages(['order_id' => 'Chỉ đơn đã giao thành công mới được yêu cầu trả hàng.']);
             }
 
-            $alreadyReturned = ChiTietTraHang::where('ma_bien_the', $item['variant_id'])
-                ->whereHas('yeuCauTraHang', fn ($query) => $query
-                    ->where('ma_dh', $order->ma_dh)
-                    ->whereNotIn('trang_thai', ['rejected', 'cancelled']))
-                ->sum('so_luong');
-            $available = $orderItem->so_luong - $alreadyReturned;
+            foreach ($items as $index => $item) {
+                $orderItem = $order->chiTiets->firstWhere('ma_bien_the', $item['variant_id']);
+                if (! $orderItem) {
+                    throw ValidationException::withMessages(["items.{$index}.variant_id" => 'Sản phẩm không thuộc đơn hàng này.']);
+                }
 
-            if ($item['quantity'] > $available) {
-                throw ValidationException::withMessages([
-                    "items.{$index}.quantity" => "Số lượng có thể trả còn lại là {$available}.",
-                ]);
+                $alreadyRequested = ChiTietTraHang::where('ma_bien_the', $item['variant_id'])
+                    ->whereHas('yeuCauTraHang', fn ($query) => $query
+                        ->where('ma_dh', $order->ma_dh)
+                        ->whereNotIn('trang_thai', ['rejected', 'cancelled']))
+                    ->sum('so_luong');
+                $available = max(0, (int) $orderItem->so_luong - (int) $alreadyRequested);
+
+                if ((int) $item['quantity'] > $available) {
+                    throw ValidationException::withMessages([
+                        "items.{$index}.quantity" => "Số lượng có thể trả còn lại là {$available}.",
+                    ]);
+                }
             }
-        }
 
-        $return = DB::transaction(function () use ($data, $user, $order, $items) {
             $return = YeuCauTraHang::create([
                 'ma_dh' => $order->ma_dh,
                 'ma_kh' => $user->ma_kh,
@@ -143,21 +142,39 @@ class ReturnRequestController extends Controller
 
         return response()->json([
             'message' => 'Đã gửi yêu cầu trả hàng. Yêu cầu đang chờ xử lý.',
-            'return_request' => $this->format($return->fresh(['donHang', 'chiTiets.bienThe', 'hinhAnhs']), true),
+            'return_request' => $this->format($return->fresh(['donHang', 'chiTiets.bienThe.sanPham.anhChinh', 'hinhAnhs']), true),
         ], 201);
     }
 
     public function cancel(Request $request, string $id)
     {
-        $return = YeuCauTraHang::where('ma_yeu_cau', $id)
-            ->where('ma_kh', $request->user()->ma_kh)
-            ->firstOrFail();
+        $return = DB::transaction(function () use ($id, $request) {
+            $return = YeuCauTraHang::where('ma_yeu_cau', $id)
+                ->where('ma_kh', $request->user()->ma_kh)
+                ->lockForUpdate()
+                ->firstOrFail();
 
-        if ($return->trang_thai !== 'pending') {
-            throw ValidationException::withMessages(['status' => 'Chỉ có thể hủy yêu cầu đang chờ xử lý.']);
-        }
+            if ($return->trang_thai !== 'pending') {
+                throw ValidationException::withMessages(['status' => 'Chỉ có thể hủy yêu cầu đang chờ xử lý.']);
+            }
 
-        $return->update(['trang_thai' => 'cancelled', 'ngay_cap_nhat' => now()]);
+            $return->update([
+                'trang_thai' => 'cancelled',
+                'ngay_cap_nhat' => now(),
+            ]);
+
+            LichSuXuLyTraHang::create([
+                'ma_yeu_cau' => $return->ma_yeu_cau,
+                'loai_thao_tac' => 'cap_nhat_trang_thai',
+                'gia_tri_cu' => 'pending',
+                'gia_tri_moi' => 'cancelled',
+                'ma_nguoi_xu_ly' => $request->user()->ma_kh,
+                'thoi_gian_xu_ly' => now(),
+                'ghi_chu' => 'Khách hàng đã hủy yêu cầu trả hàng.',
+            ]);
+
+            return $return;
+        });
 
         return response()->json(['message' => 'Đã hủy yêu cầu trả hàng.']);
     }
@@ -175,6 +192,8 @@ class ReturnRequestController extends Controller
             'admin_note' => $return->ghi_chu_admin,
             'reject_reason' => $return->ly_do_tu_choi,
             'created_at' => $return->ngay_yeu_cau?->toISOString(),
+            'received_at' => $return->ngay_nhan_hang?->toISOString(),
+            'refunded_at' => $return->ngay_hoan_tien?->toISOString(),
             'items_count' => $return->chiTiets->sum('so_luong'),
             'items' => $return->chiTiets->map(fn (ChiTietTraHang $item) => [
                 'variant_id' => $item->ma_bien_the,

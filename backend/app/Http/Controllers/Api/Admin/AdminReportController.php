@@ -10,9 +10,9 @@ use App\Models\PhieuNhapKho;
 use App\Models\SanPham;
 use App\Models\YeuCauTraHang;
 use App\Services\RevenueAnalyticsService;
+use App\Services\VariantStockStatusService;
 use App\Support\OrderStatus;
 use App\Support\UserRole;
-use App\Services\VariantStockStatusService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -21,11 +21,10 @@ class AdminReportController extends Controller
 {
     // Chỉ đơn đã giao thành công mới được ghi nhận doanh thu; đơn đang xử lý có thể bị hủy/trả.
     private const REVENUE_STATUSES = OrderStatus::FULFILLED;
+
     private const REVENUE_RETURN_STATUSES = ['received', 'completed'];
 
-    public function __construct(private readonly RevenueAnalyticsService $revenueAnalytics)
-    {
-    }
+    public function __construct(private readonly RevenueAnalyticsService $revenueAnalytics) {}
 
     /**
      * Operational dashboard data. Revenue is recognised only for delivered
@@ -52,12 +51,8 @@ class AdminReportController extends Controller
 
         $currentOrders = $this->ordersForRange($from, $to);
         $previousOrders = $this->ordersForRange($previousFrom, $previousTo);
-        $currentRevenueOrders = $currentOrders
-            ->filter(fn (DonHang $order) => $this->revenueAnalytics->hasRecognisedRevenue($order))
-            ->values();
-        $previousRevenueOrders = $previousOrders
-            ->filter(fn (DonHang $order) => $this->revenueAnalytics->hasRecognisedRevenue($order))
-            ->values();
+        $currentRevenueOrders = $this->revenueOrdersForRange($from, $to, true);
+        $previousRevenueOrders = $this->revenueOrdersForRange($previousFrom, $previousTo);
         $currentRevenue = $this->revenueAnalytics->netRevenueForOrders($currentRevenueOrders);
         $previousRevenue = $this->revenueAnalytics->netRevenueForOrders($previousRevenueOrders);
 
@@ -145,7 +140,7 @@ class AdminReportController extends Controller
             'top_categories' => $topCategories,
             'top_customers' => $this->revenueAnalytics->topCustomers($from, $to, $limit),
             'meta' => [
-                'revenue_rule' => 'Chỉ tính đơn giao thành công đã thanh toán hợp lệ; doanh thu được phân bổ theo tổng tiền thực nhận và trừ hàng đã trả hoặc hoàn tiền.',
+                'revenue_rule' => 'Doanh thu được ghi nhận theo ngày giao thành công, với đơn thanh toán hợp lệ; chỉ trừ hàng đã thực nhận trả về kho.',
                 'low_stock_count' => $lowStock,
                 'ranking_limit' => $limit,
             ],
@@ -156,11 +151,26 @@ class AdminReportController extends Controller
     {
         return DonHang::with([
             'khachHang',
-            'chiTiets.bienThe.sanPham.danhMuc',
-            'chiTiets.bienThe.sanPham.anhChinh',
-            'yeuCauTraHangs.chiTiets',
             'xuLyGanNhat.nguoiXuLy',
         ])->whereBetween('ngay_dat', [$from, $to])->get();
+    }
+
+    private function revenueOrdersForRange(Carbon $from, Carbon $to, bool $withProductDetails = false)
+    {
+        $relations = [
+            'chiTiets',
+            'yeuCauTraHangs.chiTiets',
+        ];
+        if ($withProductDetails) {
+            $relations[] = 'chiTiets.bienThe.sanPham.anhChinh';
+        }
+
+        return DonHang::with($relations)
+            ->whereIn('trang_thai', self::REVENUE_STATUSES)
+            ->whereBetween('ngay_giao_thanh_cong', [$from, $to])
+            ->get()
+            ->filter(fn (DonHang $order) => $this->revenueAnalytics->hasRecognisedRevenue($order))
+            ->values();
     }
 
     private function metric(float|int $value, float|int $previous): array
@@ -190,11 +200,13 @@ class AdminReportController extends Controller
         $mode = $days <= 2 ? 'hour' : ($days <= 31 ? 'day' : ($days <= 180 ? 'week' : 'month'));
 
         return $orders->groupBy(function (DonHang $order) use ($mode) {
+            $deliveredAt = $order->ngay_giao_thanh_cong ?? $order->ngay_dat;
+
             return match ($mode) {
-                'hour' => $order->ngay_dat->format('d/m H:00'),
-                'week' => 'Tuần '.$order->ngay_dat->isoWeek().'/'.$order->ngay_dat->format('Y'),
-                'month' => 'T'.$order->ngay_dat->format('m/Y'),
-                default => $order->ngay_dat->format('d/m'),
+                'hour' => $deliveredAt->format('d/m H:00'),
+                'week' => 'Tuần '.$deliveredAt->isoWeek().'/'.$deliveredAt->format('Y'),
+                'month' => 'T'.$deliveredAt->format('m/Y'),
+                default => $deliveredAt->format('d/m'),
             };
         })->map(function ($bucket, string $label) {
             return [
@@ -214,7 +226,9 @@ class AdminReportController extends Controller
             foreach ($order->chiTiets as $item) {
                 $variant = $item->bienThe;
                 $product = $variant?->sanPham;
-                if (!$product) continue;
+                if (! $product) {
+                    continue;
+                }
                 $quantity = max(0, (int) $item->so_luong - (int) ($returned[$item->ma_bien_the] ?? 0));
                 $id = $product->ma_sp;
                 $products[$id] ??= [
@@ -243,6 +257,7 @@ class AdminReportController extends Controller
     {
         $revenueOrders = DonHang::with(['chiTiets', 'yeuCauTraHangs.chiTiets'])
             ->whereIn('trang_thai', self::REVENUE_STATUSES)
+            ->whereNotNull('ngay_giao_thanh_cong')
             ->get()
             ->filter(fn (DonHang $order) => $this->revenueAnalytics->hasRecognisedRevenue($order));
         $totalRevenue = $this->revenueAnalytics->netRevenueForOrders($revenueOrders);
@@ -282,6 +297,7 @@ class AdminReportController extends Controller
                 $join->on('ha.ma_sp', '=', 'sp.ma_sp')->where('ha.anh_chinh', true);
             })
             ->whereIn('dh.trang_thai', self::REVENUE_STATUSES)
+            ->whereNotNull('dh.ngay_giao_thanh_cong')
             ->selectRaw('dh.ma_dh, ct.ma_bien_the, sp.ma_sp, sp.ten_sp, ha.url as image, ct.so_luong, ct.don_gia')
             ->get()
             ->groupBy('ma_sp')
@@ -319,7 +335,7 @@ class AdminReportController extends Controller
                 'total_products' => $totalProducts,
                 'low_stock_count' => $lowStockCount,
                 'low_stock' => $lowStockCount,
-                'revenue_note' => 'Doanh thu chỉ tính từ các đơn đã hoàn thành.',
+                'revenue_note' => 'Doanh thu chỉ tính theo ngày giao thành công và hàng đã thực nhận trả về kho.',
                 'revenue_statuses' => self::REVENUE_STATUSES,
                 'status_pending' => DonHang::where('trang_thai', 'pending')->count(),
                 'status_confirmed' => DonHang::where('trang_thai', 'confirmed')->count(),
@@ -341,10 +357,10 @@ class AdminReportController extends Controller
 
         $orders = DonHang::with(['chiTiets', 'yeuCauTraHangs.chiTiets'])
             ->whereIn('trang_thai', self::REVENUE_STATUSES)
-            ->whereYear('ngay_dat', $year)
+            ->whereYear('ngay_giao_thanh_cong', $year)
             ->get()
             ->filter(fn (DonHang $order) => $this->revenueAnalytics->hasRecognisedRevenue($order))
-            ->groupBy(fn (DonHang $order) => (int) $order->ngay_dat->format('n'));
+            ->groupBy(fn (DonHang $order) => (int) $order->ngay_giao_thanh_cong->format('n'));
 
         $result = [];
         for ($month = 1; $month <= 12; $month++) {
@@ -365,9 +381,11 @@ class AdminReportController extends Controller
             'monthly' => $result,
             'total_revenue' => $totalRevenue,
             'revenue_orders' => $totalRevenueOrders,
-            'total_orders' => DonHang::whereYear('ngay_dat', $year)->count(),
+            'total_orders' => DonHang::whereIn('trang_thai', self::REVENUE_STATUSES)
+                ->whereYear('ngay_giao_thanh_cong', $year)
+                ->count(),
             'avg_order_value' => round($avgOrderValue, 2),
-            'note' => 'Doanh thu chỉ tính từ các đơn đã hoàn thành.',
+            'note' => 'Doanh thu được ghi nhận theo ngày giao thành công.',
             'revenue_statuses' => self::REVENUE_STATUSES,
         ]);
     }
@@ -396,5 +414,4 @@ class AdminReportController extends Controller
             'low' => $lowStock->where('alert_level', 'low_stock')->count(),
         ]);
     }
-
 }

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\GioHang;
 use App\Models\KhachHang;
 use App\Support\UserRole;
 use Illuminate\Http\Request;
@@ -32,6 +33,7 @@ class AdminStaffController extends Controller
             $query->where(function ($builder) use ($role) {
                 if ($role === 'admin') {
                     $builder->where('role', 'admin')->orWhere('vai_tro', true);
+
                     return;
                 }
 
@@ -73,7 +75,7 @@ class AdminStaffController extends Controller
             'ngay_tao' => now(),
         ]);
 
-        \App\Models\GioHang::create(['ma_kh' => $staff->ma_kh]);
+        GioHang::create(['ma_kh' => $staff->ma_kh]);
 
         return response()->json($this->formatStaff($staff), 201);
     }
@@ -95,7 +97,7 @@ class AdminStaffController extends Controller
             'active' => ['required', 'boolean'],
         ]);
 
-        if ($request->user()->ma_kh === $staff->ma_kh && ($data['role'] !== UserRole::ADMIN || !$data['active'])) {
+        if ($this->isCurrentUser($request, $staff) && ($data['role'] !== UserRole::ADMIN || ! $data['active'])) {
             throw ValidationException::withMessages([
                 'role' => 'Bạn không thể tự hạ quyền hoặc khóa tài khoản của chính mình.',
             ]);
@@ -110,7 +112,7 @@ class AdminStaffController extends Controller
             'trang_thai' => $data['active'],
         ];
 
-        if (!empty($data['password'])) {
+        if (! empty($data['password'])) {
             $payload['mat_khau'] = Hash::make($data['password']);
         }
 
@@ -127,15 +129,20 @@ class AdminStaffController extends Controller
             })
             ->firstOrFail();
 
-        if ($request->user()->ma_kh === $staff->ma_kh) {
+        if ($this->isCurrentUser($request, $staff)) {
             throw ValidationException::withMessages([
                 'staff' => 'Bạn không thể tự khóa tài khoản của chính mình.',
             ]);
         }
 
-        $staff->update(['trang_thai' => !$staff->trang_thai]);
+        $staff->update(['trang_thai' => ! $staff->trang_thai]);
 
         return response()->json($this->formatStaff($staff->fresh()));
+    }
+
+    private function isCurrentUser(Request $request, KhachHang $staff): bool
+    {
+        return (string) $request->user()->getAuthIdentifier() === (string) $staff->getAuthIdentifier();
     }
 
     private function formatStaff(KhachHang $user): array

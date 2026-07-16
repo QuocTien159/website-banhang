@@ -300,6 +300,7 @@ export function OrderDetailPage() {
             <p className="text-sm text-muted-foreground mt-1">
               Đặt lúc {new Date(order.created_at).toLocaleString('vi-VN')}
             </p>
+            {order.successful_delivery_at && <p className="mt-1 text-sm text-emerald-700">Giao thành công lúc {new Date(order.successful_delivery_at).toLocaleString('vi-VN')}</p>}
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <span className={`w-fit text-sm px-3 py-1 rounded-full font-medium ${ORDER_STATUS_COLORS[order.status] ?? STATUS_COLORS[order.status] ?? 'bg-gray-100 text-gray-700'}`}>

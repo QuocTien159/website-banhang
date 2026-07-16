@@ -7,6 +7,7 @@ use App\Models\BienTheSanPham;
 use App\Models\ChiTietPhieuNhapKho;
 use App\Models\LichSuBienDongKho;
 use App\Models\PhieuNhapKho;
+use App\Models\YeuCauDieuChinhKho;
 use App\Services\InventoryService;
 use App\Services\VariantStockStatusService;
 use Illuminate\Http\Request;
@@ -37,7 +38,7 @@ class AdminInventoryController extends Controller
     {
         $query = PhieuNhapKho::with(['nguoiNhap', 'nguoiDuyet', 'chiTiets.bienThe.sanPham']);
 
-        if (!$request->user()->isAdmin()) {
+        if (! $request->user()->isAdmin()) {
             $query->where('ma_nguoi_nhap', $request->user()->ma_kh);
         }
 
@@ -127,7 +128,7 @@ class AdminInventoryController extends Controller
             ->orWhere('ma_phieu', $id)
             ->firstOrFail();
 
-        if (!$request->user()->isAdmin() && $receipt->ma_nguoi_nhap !== $request->user()->ma_kh) {
+        if (! $request->user()->isAdmin() && $receipt->ma_nguoi_nhap !== $request->user()->ma_kh) {
             abort(403, 'Báº¡n khÃ´ng cÃ³ quyá»n xem phiáº¿u nháº­p nÃ y.');
         }
 
@@ -184,20 +185,25 @@ class AdminInventoryController extends Controller
             'approval_note' => ['nullable', 'string', 'max:1000'],
         ]);
 
-        $receipt = PhieuNhapKho::where('ma_pnk', $id)
-            ->orWhere('ma_phieu', $id)
-            ->firstOrFail();
+        $receipt = DB::transaction(function () use ($id, $request, $data) {
+            $receipt = PhieuNhapKho::where('ma_pnk', $id)
+                ->orWhere('ma_phieu', $id)
+                ->lockForUpdate()
+                ->firstOrFail();
 
-        if ($receipt->trang_thai !== 'pending') {
-            throw ValidationException::withMessages(['receipt' => 'Phiáº¿u nháº­p nÃ y khÃ´ng cÃ²n chá» duyá»‡t.']);
-        }
+            if ($receipt->trang_thai !== 'pending') {
+                throw ValidationException::withMessages(['receipt' => 'Phiáº¿u nháº­p nÃ y khÃ´ng cÃ²n chá» duyá»‡t.']);
+            }
 
-        $receipt->update([
-            'trang_thai' => 'rejected',
-            'ma_nguoi_duyet' => $request->user()->ma_kh,
-            'ngay_duyet' => now(),
-            'ghi_chu_duyet' => $data['approval_note'] ?? null,
-        ]);
+            $receipt->update([
+                'trang_thai' => 'rejected',
+                'ma_nguoi_duyet' => $request->user()->ma_kh,
+                'ngay_duyet' => now(),
+                'ghi_chu_duyet' => $data['approval_note'] ?? null,
+            ]);
+
+            return $receipt;
+        });
 
         return response()->json([
             'message' => 'ÄÃ£ tá»« chá»‘i phiáº¿u nháº­p.',
@@ -253,6 +259,37 @@ class AdminInventoryController extends Controller
             'reason' => ['required', 'string', 'min:5', 'max:1000'],
         ]);
 
+        if (! $request->user()->isAdmin()) {
+            $adjustment = DB::transaction(function () use ($data, $request) {
+                $variant = BienTheSanPham::where('ma_bt', $data['variant_id'])->lockForUpdate()->firstOrFail();
+                if ((int) $variant->so_luong_ton === (int) $data['stock']) {
+                    throw ValidationException::withMessages([
+                        'stock' => 'Tồn kho đề xuất phải khác tồn kho hiện tại.',
+                    ]);
+                }
+
+                return YeuCauDieuChinhKho::create([
+                    'ma_bien_the' => $variant->ma_bt,
+                    'ton_kho_tai_luc_tao' => $variant->so_luong_ton,
+                    'ton_kho_de_xuat' => (int) $data['stock'],
+                    'ly_do' => $data['reason'],
+                    'trang_thai' => 'pending',
+                    'ma_nguoi_tao' => $request->user()->ma_kh,
+                    'ngay_tao' => now(),
+                ]);
+            });
+
+            return response()->json([
+                'message' => 'Đã gửi yêu cầu điều chỉnh kho chờ admin duyệt.',
+                'adjustment' => $this->formatAdjustment($adjustment->fresh([
+                    'bienThe.sanPham.anhChinh',
+                    'bienThe.giaTriThuocTinhs.thuocTinh',
+                    'nguoiTao',
+                    'nguoiDuyet',
+                ])),
+            ], 202);
+        }
+
         $variant = DB::transaction(fn () => $inventoryService->adjustStock(
             $data['variant_id'],
             (int) $data['stock'],
@@ -263,6 +300,129 @@ class AdminInventoryController extends Controller
         return response()->json([
             'message' => 'Đã điều chỉnh tồn kho.',
             'variant' => $this->formatVariant($variant->load(['sanPham.anhChinh', 'giaTriThuocTinhs.thuocTinh'])),
+        ]);
+    }
+
+    public function adjustments(Request $request)
+    {
+        $query = YeuCauDieuChinhKho::with([
+            'bienThe.sanPham.anhChinh',
+            'bienThe.giaTriThuocTinhs.thuocTinh',
+            'nguoiTao',
+            'nguoiDuyet',
+        ]);
+
+        if (! $request->user()->isAdmin()) {
+            $query->where('ma_nguoi_tao', $request->user()->ma_kh);
+        }
+        if ($status = $request->input('status')) {
+            $query->where('trang_thai', $status);
+        }
+        if ($search = $request->input('search')) {
+            $query->where(function ($q) use ($search) {
+                $q->where('ma_ycdck', 'like', "%{$search}%")
+                    ->orWhere('ly_do', 'like', "%{$search}%")
+                    ->orWhereHas('bienThe', fn ($variant) => $variant->where('sku', 'like', "%{$search}%"))
+                    ->orWhereHas('bienThe.sanPham', fn ($product) => $product->where('ten_sp', 'like', "%{$search}%"));
+            });
+        }
+
+        $adjustments = $query->orderByDesc('ngay_tao')->paginate($request->integer('per_page', 15));
+
+        return response()->json([
+            'data' => $adjustments->getCollection()->map(fn (YeuCauDieuChinhKho $adjustment) => $this->formatAdjustment($adjustment)),
+            'meta' => [
+                'total' => $adjustments->total(),
+                'current_page' => $adjustments->currentPage(),
+                'last_page' => $adjustments->lastPage(),
+            ],
+        ]);
+    }
+
+    public function approveAdjustment(Request $request, string $id, InventoryService $inventoryService)
+    {
+        $data = $request->validate([
+            'approval_note' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        $adjustment = DB::transaction(function () use ($id, $data, $request, $inventoryService) {
+            $adjustment = YeuCauDieuChinhKho::where('ma_ycdck', $id)->lockForUpdate()->firstOrFail();
+            if ($adjustment->trang_thai !== 'pending') {
+                throw ValidationException::withMessages([
+                    'adjustment' => 'Yêu cầu điều chỉnh kho này không còn chờ duyệt.',
+                ]);
+            }
+
+            $variant = BienTheSanPham::where('ma_bt', $adjustment->ma_bien_the)
+                ->lockForUpdate()
+                ->firstOrFail();
+            if ((int) $variant->so_luong_ton !== (int) $adjustment->ton_kho_tai_luc_tao) {
+                throw ValidationException::withMessages([
+                    'adjustment' => 'Tồn kho hiện tại đã thay đổi kể từ khi gửi yêu cầu. Hãy từ chối yêu cầu này và tạo yêu cầu kiểm kê mới.',
+                ]);
+            }
+
+            $inventoryService->adjustStock(
+                $adjustment->ma_bien_the,
+                (int) $adjustment->ton_kho_de_xuat,
+                $request->user()->ma_kh,
+                $adjustment->ly_do,
+                $adjustment->ma_ycdck,
+            );
+
+            $adjustment->update([
+                'trang_thai' => 'approved',
+                'ma_nguoi_duyet' => $request->user()->ma_kh,
+                'ngay_duyet' => now(),
+                'ghi_chu_duyet' => $data['approval_note'] ?? null,
+            ]);
+
+            return $adjustment;
+        });
+
+        return response()->json([
+            'message' => 'Đã duyệt yêu cầu điều chỉnh kho và cập nhật tồn.',
+            'adjustment' => $this->formatAdjustment($adjustment->fresh([
+                'bienThe.sanPham.anhChinh',
+                'bienThe.giaTriThuocTinhs.thuocTinh',
+                'nguoiTao',
+                'nguoiDuyet',
+            ])),
+        ]);
+    }
+
+    public function rejectAdjustment(Request $request, string $id)
+    {
+        $data = $request->validate([
+            'approval_note' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        $adjustment = DB::transaction(function () use ($id, $data, $request) {
+            $adjustment = YeuCauDieuChinhKho::where('ma_ycdck', $id)->lockForUpdate()->firstOrFail();
+            if ($adjustment->trang_thai !== 'pending') {
+                throw ValidationException::withMessages([
+                    'adjustment' => 'Yêu cầu điều chỉnh kho này không còn chờ duyệt.',
+                ]);
+            }
+
+            $adjustment->update([
+                'trang_thai' => 'rejected',
+                'ma_nguoi_duyet' => $request->user()->ma_kh,
+                'ngay_duyet' => now(),
+                'ghi_chu_duyet' => $data['approval_note'] ?? null,
+            ]);
+
+            return $adjustment;
+        });
+
+        return response()->json([
+            'message' => 'Đã từ chối yêu cầu điều chỉnh kho.',
+            'adjustment' => $this->formatAdjustment($adjustment->fresh([
+                'bienThe.sanPham.anhChinh',
+                'bienThe.giaTriThuocTinhs.thuocTinh',
+                'nguoiTao',
+                'nguoiDuyet',
+            ])),
         ]);
     }
 
@@ -288,7 +448,7 @@ class AdminInventoryController extends Controller
 
     private function generateReceiptCode(): string
     {
-        return 'NK-' . now()->format('Ymd-His') . '-' . random_int(100, 999);
+        return 'NK-'.now()->format('Ymd-His').'-'.random_int(100, 999);
     }
 
     private function formatReceiptSummary(PhieuNhapKho $receipt): array
@@ -337,9 +497,26 @@ class AdminInventoryController extends Controller
         ];
     }
 
+    private function formatAdjustment(YeuCauDieuChinhKho $adjustment): array
+    {
+        return [
+            'id' => $adjustment->ma_ycdck,
+            'status' => $adjustment->trang_thai,
+            'requested_stock' => (int) $adjustment->ton_kho_de_xuat,
+            'stock_at_request' => (int) $adjustment->ton_kho_tai_luc_tao,
+            'reason' => $adjustment->ly_do,
+            'created_at' => $adjustment->ngay_tao?->toISOString(),
+            'approved_at' => $adjustment->ngay_duyet?->toISOString(),
+            'approval_note' => $adjustment->ghi_chu_duyet,
+            'requester' => $adjustment->nguoiTao?->ten_kh,
+            'approver' => $adjustment->nguoiDuyet?->ten_kh,
+            'variant' => $this->formatVariant($adjustment->bienThe),
+        ];
+    }
+
     private function formatVariant(?BienTheSanPham $variant): ?array
     {
-        if (!$variant) {
+        if (! $variant) {
             return null;
         }
 
