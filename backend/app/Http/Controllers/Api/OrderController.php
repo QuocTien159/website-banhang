@@ -20,36 +20,44 @@ class OrderController extends Controller
 {
     public function index(Request $request, PayOsService $payOsService)
     {
-        $orders = DonHang::with(['chiTiets.bienThe.sanPham.anhChinh'])
+        $orders = DonHang::with(['chiTiets.bienThe.sanPham.anhChinh', 'vanDonVanChuyen'])
             ->where('ma_kh', $request->user()->ma_kh)
             ->orderBy('ngay_dat', 'desc')
             ->get()
-            ->map(fn (DonHang $order) => $this->syncPayOsOrder($order, $payOsService, ['chiTiets.bienThe.sanPham.anhChinh']));
+            ->map(fn (DonHang $order) => $this->syncPayOsOrder($order, $payOsService, ['chiTiets.bienThe.sanPham.anhChinh', 'vanDonVanChuyen']));
 
         return response()->json($orders->map(fn ($order) => $this->formatOrder($order)));
     }
 
     public function show(Request $request, string $id, PayOsService $payOsService)
     {
-        $order = DonHang::with(['chiTiets.bienThe.sanPham.anhChinh', 'chiTiets.bienThe.giaTriThuocTinhs.thuocTinh'])
+        $order = DonHang::with([
+            'chiTiets.bienThe.sanPham.anhChinh',
+            'chiTiets.bienThe.giaTriThuocTinhs.thuocTinh',
+            'vanDonVanChuyen.suKiens',
+        ])
             ->where('ma_dh', $id)
             ->where('ma_kh', $request->user()->ma_kh)
             ->firstOrFail();
 
-        $order = $this->syncPayOsOrder($order, $payOsService, ['chiTiets.bienThe.sanPham.anhChinh', 'chiTiets.bienThe.giaTriThuocTinhs.thuocTinh']);
+        $order = $this->syncPayOsOrder($order, $payOsService, [
+            'chiTiets.bienThe.sanPham.anhChinh',
+            'chiTiets.bienThe.giaTriThuocTinhs.thuocTinh',
+            'vanDonVanChuyen.suKiens',
+        ]);
 
         return response()->json($this->formatOrder($order, true));
     }
 
     public function payosStatus(Request $request, string $orderCode, PayOsService $payOsService)
     {
-        $order = DonHang::with(['chiTiets.bienThe.sanPham.anhChinh'])
+        $order = DonHang::with(['chiTiets.bienThe.sanPham.anhChinh', 'vanDonVanChuyen'])
             ->where('payos_order_code', (int) $orderCode)
             ->where('payment_provider', 'payos')
             ->where('ma_kh', $request->user()->ma_kh)
             ->firstOrFail();
 
-        $order = $this->syncPayOsOrder($order, $payOsService, ['chiTiets.bienThe.sanPham.anhChinh']);
+        $order = $this->syncPayOsOrder($order, $payOsService, ['chiTiets.bienThe.sanPham.anhChinh', 'vanDonVanChuyen']);
 
         return response()->json($this->formatOrder($order));
     }
@@ -288,6 +296,7 @@ class OrderController extends Controller
             'shipping_service_name' => $order->shipping_service_name,
             'shipping_order_code' => $order->shipping_order_code,
             'shipping_status' => $order->shipping_status,
+            'shipping_tracking' => $this->formatShippingTracking($order, $detail),
             'coupon_code' => $order->ma_khuyen_mai,
             'discount' => (float) ($order->so_tien_giam ?? 0),
             'payment_method' => $order->phuong_thuc_tt,
@@ -345,5 +354,53 @@ class OrderController extends Controller
         }
 
         return $order;
+    }
+
+    private function formatShippingTracking(DonHang $order, bool $detail): array
+    {
+        $shipment = $order->vanDonVanChuyen;
+        if (!$shipment) {
+            return [
+                'mode' => 'legacy',
+                'provider' => $order->shipping_provider ?? 'manual',
+                'tracking_code' => $order->shipping_order_code,
+                'status' => null,
+                'raw_status' => $order->shipping_status,
+                'status_updated_at' => null,
+                'expected_delivery_at' => $order->shipping_expected_delivery_at?->toISOString(),
+                'events' => [],
+            ];
+        }
+
+        return [
+            'mode' => 'ghn',
+            'provider' => 'ghn',
+            'tracking_code' => $shipment->ma_van_don_ghn,
+            'status' => $shipment->trang_thai_van_chuyen,
+            'raw_status' => $shipment->trang_thai_ghn_goc,
+            'status_updated_at' => $shipment->ngay_cap_nhat_ghn?->toISOString(),
+            'expected_delivery_at' => $shipment->thoi_gian_giao_du_kien?->toISOString(),
+            'events' => $detail
+                ? $shipment->suKiens
+                    ->filter(fn ($event) => !$event->da_bo_qua && in_array($event->nguon, ['ghn_create', 'ghn_sync', 'ghn_webhook'], true))
+                    ->map(fn ($event) => [
+                    'status' => $event->trang_thai_van_chuyen,
+                    'raw_status' => $event->trang_thai_ghn_goc,
+                    'at' => $event->thoi_gian_su_kien?->toISOString(),
+                    'note' => $this->customerShippingNote($event->trang_thai_van_chuyen),
+                    ])->values()
+                : [],
+        ];
+    }
+
+    private function customerShippingNote(?string $status): ?string
+    {
+        return match ($status) {
+            'delivery_failed' => 'GHN chưa giao được hàng. Vui lòng theo dõi thêm hoặc liên hệ cửa hàng khi cần hỗ trợ.',
+            'returning' => 'Đơn đang được GHN hoàn về kho.',
+            'returned' => 'Đơn đã được GHN hoàn về kho.',
+            'exception' => 'GHN đang xử lý một sự cố giao hàng. Cửa hàng sẽ cập nhật sớm nhất.',
+            default => null,
+        };
     }
 }

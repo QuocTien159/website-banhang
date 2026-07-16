@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use App\Traits\GeneratesCustomId;
+use App\Support\OrderStatus;
 
 class SanPham extends Model
 {
@@ -88,7 +89,7 @@ class SanPham extends Model
             ->join('bien_the_san_pham', 'chi_tiet_don_hang.ma_bien_the', '=', 'bien_the_san_pham.ma_bt')
             ->join('don_hang', 'chi_tiet_don_hang.ma_dh', '=', 'don_hang.ma_dh')
             ->where('bien_the_san_pham.ma_sp', $this->ma_sp)
-            ->where('don_hang.trang_thai', 'delivered')
+            ->whereIn('don_hang.trang_thai', OrderStatus::FULFILLED)
             ->sum('chi_tiet_don_hang.so_luong');
 
         $returned = \DB::table('chi_tiet_tra_hang')

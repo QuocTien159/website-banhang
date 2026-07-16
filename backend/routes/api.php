@@ -28,6 +28,7 @@ use App\Http\Controllers\Api\Admin\AdminInventoryController;
 use App\Http\Controllers\Api\Admin\AdminReturnRequestController;
 use App\Http\Controllers\Api\Admin\AdminStaffController;
 use App\Http\Controllers\Api\ShippingPaymentController;
+use App\Http\Controllers\Api\GhnWebhookController;
 use App\Http\Controllers\Api\Admin\AdminPaymentShippingSettingController;
 use App\Support\UserRole;
 
@@ -50,6 +51,7 @@ Route::get('categories',           [CategoryController::class, 'index']);
 Route::get('announcements',        [AnnouncementController::class, 'index']);
 Route::get('homepage-promotion',   [HomepagePromotionController::class, 'show']);
 Route::post('payment/payos-webhook', [PaymentController::class, 'payosWebhook']);
+Route::post('webhooks/ghn/order-status', [GhnWebhookController::class, 'orderStatus']);
 
 /*
 |----------------------------------------------------------------------
@@ -130,8 +132,13 @@ Route::middleware('auth:sanctum')->group(function () {
 
         // Orders
         Route::get('orders',                     [AdminOrderController::class, 'index']);
+        Route::get('orders/{id}',                [AdminOrderController::class, 'show']);
         Route::put('orders/{id}/status',         [AdminOrderController::class, 'updateStatus']);
         Route::put('orders/{id}/payment-status', [AdminOrderController::class, 'updatePaymentStatus']);
+        Route::post('orders/{id}/shipping/handoff', [AdminOrderController::class, 'handoffToGhn']);
+        Route::post('orders/{id}/shipping/retry', [AdminOrderController::class, 'retryGhnShipment']);
+        Route::post('orders/{id}/shipping/sync', [AdminOrderController::class, 'syncGhnShipment']);
+        Route::post('orders/{id}/shipping/cancel', [AdminOrderController::class, 'requestGhnShipmentCancellation']);
         Route::middleware('role:'.UserRole::ADMIN)->group(function () {
             Route::get   ('variants',                 [AdminVariantController::class, 'index']);
             Route::get   ('variants/{id}',            [AdminVariantController::class, 'show']);

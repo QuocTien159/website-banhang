@@ -68,6 +68,11 @@ class DonHang extends Model
         return $this->hasMany(PaymentLog::class, 'ma_dh', 'ma_dh');
     }
 
+    public function vanDonVanChuyen()
+    {
+        return $this->hasOne(VanDonVanChuyen::class, 'ma_dh', 'ma_dh');
+    }
+
     public function xuLyGanNhat()
     {
         return $this->hasOne(LichSuXuLyDonHang::class, 'ma_dh', 'ma_dh')->latestOfMany('thoi_gian_xu_ly');

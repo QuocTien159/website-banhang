@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\PaymentShippingSetting;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use RuntimeException;
 
 class GhnShippingService
@@ -18,19 +19,48 @@ class GhnShippingService
             && filled($this->baseUrl());
     }
 
+    /**
+     * The checkout fee calculator can work with the database pickup profile or
+     * the deployment fallback in .env. Fulfilment requires the complete profile.
+     */
     public function hasPickupAddress(?PaymentShippingSetting $setting = null): bool
+    {
+        $pickup = $this->pickupDetails($setting);
+
+        return $this->isConfigured($setting)
+            && filled($pickup['district_id'])
+            && filled($pickup['ward_code']);
+    }
+
+    public function hasFulfillmentPickupAddress(?PaymentShippingSetting $setting = null): bool
+    {
+        $pickup = $this->pickupDetails($setting);
+
+        return $this->hasPickupAddress($setting)
+            && filled($pickup['name'])
+            && filled($pickup['phone'])
+            && filled($pickup['address']);
+    }
+
+    /** @return array{name: ?string, phone: ?string, address: ?string, province_id: ?int, district_id: ?int, ward_code: ?string} */
+    public function pickupDetails(?PaymentShippingSetting $setting = null): array
     {
         $setting ??= PaymentShippingSetting::current();
 
-        return $this->isConfigured($setting)
-            && filled($setting->pickup_district_id)
-            && filled($setting->pickup_ward_code);
+        return [
+            'name' => $this->firstFilled($setting->pickup_name, config('services.ghn.from_name')),
+            'phone' => $this->firstFilled($setting->pickup_phone, config('services.ghn.from_phone')),
+            'address' => $this->firstFilled($setting->pickup_address, config('services.ghn.from_address')),
+            'province_id' => $this->positiveInteger($setting->pickup_province_id ?: config('services.ghn.from_province_id')),
+            'district_id' => $this->positiveInteger($setting->pickup_district_id ?: config('services.ghn.from_district_id')),
+            'ward_code' => $this->firstFilled($setting->pickup_ward_code, config('services.ghn.from_ward_code')),
+        ];
     }
 
     public function provinces(): array
     {
         return Cache::remember('ghn_provinces', now()->addDays(7), function () {
-            $data = $this->request('get', '/shiip/public-api/master-data/province');
+            $data = $this->request('get', 'master-data/province');
 
             return collect($data)
                 ->map(fn (array $province) => [
@@ -51,7 +81,7 @@ class GhnShippingService
         $provinceId = (int) $provinceId;
 
         return Cache::remember("ghn_districts_{$provinceId}", now()->addDays(7), function () use ($provinceId) {
-            $data = $this->request('post', '/shiip/public-api/master-data/district', [
+            $data = $this->request('post', 'master-data/district', [
                 'province_id' => $provinceId,
             ]);
 
@@ -76,7 +106,7 @@ class GhnShippingService
         $districtId = (int) $districtId;
 
         return Cache::remember("ghn_wards_{$districtId}", now()->addDays(7), function () use ($districtId) {
-            $data = $this->request('post', '/shiip/public-api/master-data/ward', [
+            $data = $this->request('post', 'master-data/ward', [
                 'district_id' => $districtId,
             ]);
 
@@ -110,20 +140,30 @@ class GhnShippingService
         return collect($this->wards($districtId))->first(fn (array $ward) => (string) $ward['code'] === (string) $wardCode);
     }
 
+    public function availableServices(int $fromDistrictId, int $toDistrictId, ?PaymentShippingSetting $setting = null): array
+    {
+        return $this->request('post', 'v2/shipping-order/available-services', [
+            'shop_id' => (int) $this->shopId($setting),
+            'from_district' => $fromDistrictId,
+            'to_district' => $toDistrictId,
+        ], $setting);
+    }
+
     public function calculateFee(array $payload, ?PaymentShippingSetting $setting = null): array
     {
         $setting ??= PaymentShippingSetting::current();
+        $pickup = $this->pickupDetails($setting);
 
         if (!$this->hasPickupAddress($setting)) {
             throw new RuntimeException('Chưa cấu hình đầy đủ địa chỉ kho lấy hàng GHN.');
         }
 
         $dimensions = $this->dimensions($payload['items'] ?? [], $setting);
-        $data = $this->request('post', '/shiip/public-api/v2/shipping-order/fee', [
+        $data = $this->request('post', 'v2/shipping-order/fee', [
             'service_type_id' => (int) ($payload['service_type_id'] ?? 2),
             'insurance_value' => min(5000000, max(0, (int) ($payload['insurance_value'] ?? 0))),
-            'from_district_id' => (int) $setting->pickup_district_id,
-            'from_ward_code' => (string) $setting->pickup_ward_code,
+            'from_district_id' => (int) $pickup['district_id'],
+            'from_ward_code' => (string) $pickup['ward_code'],
             'to_district_id' => (int) $payload['to_district_id'],
             'to_ward_code' => (string) $payload['to_ward_code'],
             'weight' => $dimensions['weight'],
@@ -138,6 +178,33 @@ class GhnShippingService
             'raw' => $data,
             'dimensions' => $dimensions,
         ];
+    }
+
+    public function estimateDelivery(array $payload, ?PaymentShippingSetting $setting = null): array
+    {
+        return $this->request('post', 'v2/shipping-order/leadtime', $payload, $setting);
+    }
+
+    /** @return array<string, mixed> */
+    public function createOrder(array $payload, ?PaymentShippingSetting $setting = null): array
+    {
+        return $this->request('post', 'v2/shipping-order/create', $payload, $setting);
+    }
+
+    /** @return array<string, mixed> */
+    public function orderDetail(string $ghnOrderCode, ?PaymentShippingSetting $setting = null): array
+    {
+        return $this->request('post', 'v2/shipping-order/detail', [
+            'order_code' => $ghnOrderCode,
+        ], $setting);
+    }
+
+    /** @return array<string, mixed> */
+    public function cancelOrder(string $ghnOrderCode, ?PaymentShippingSetting $setting = null): array
+    {
+        return $this->request('post', 'v2/switch-status/cancel', [
+            'order_codes' => [$ghnOrderCode],
+        ], $setting);
     }
 
     public function dimensions(array $items, PaymentShippingSetting $setting): array
@@ -166,31 +233,71 @@ class GhnShippingService
         return 'Không thể kết nối GHN để tính phí vận chuyển. Vui lòng thử lại.';
     }
 
+    /** @return array<string, mixed> */
     private function request(string $method, string $path, array $payload = [], ?PaymentShippingSetting $setting = null): array
     {
         $setting ??= PaymentShippingSetting::current();
-        $response = Http::timeout(12)
+        $response = Http::acceptJson()
+            ->timeout((int) config('services.ghn.timeout', 12))
             ->retry(1, 200)
-            ->withOptions(['verify' => (bool) config('services.ghn.verify_ssl', true)])
+            ->withOptions($this->httpOptions())
             ->withHeaders([
                 'Token' => (string) $this->token(),
                 'ShopId' => (string) $this->shopId($setting),
-                'Content-Type' => 'application/json',
             ])
-            ->{$method}(rtrim($this->baseUrl(), '/').$path, $payload);
+            ->{$method}($this->endpointUrl($path), $payload);
 
         if (!$response->ok()) {
-            $message = $response->json('message') ?: $response->body();
-            throw new RuntimeException('GHN API lỗi HTTP '.$response->status().': '.$message);
+            Log::warning('GHN API returned an HTTP error.', [
+                'path' => $path,
+                'status' => $response->status(),
+            ]);
+            $message = (string) ($response->json('message') ?: 'GHN không thể xử lý yêu cầu.');
+            throw new RuntimeException("GHN API lỗi HTTP {$response->status()}: {$message}");
         }
 
         $json = $response->json();
         $code = (int) ($json['code'] ?? 0);
         if ($code !== 200) {
-            throw new RuntimeException($json['message'] ?? 'GHN API trả về lỗi.');
+            Log::warning('GHN API returned a non-success response.', [
+                'path' => $path,
+                'code' => $code,
+            ]);
+            throw new RuntimeException((string) ($json['message'] ?? 'GHN API trả về lỗi.'));
         }
 
-        return $json['data'] ?? [];
+        return is_array($json['data'] ?? null) ? $json['data'] : [];
+    }
+
+    private function httpOptions(): array
+    {
+        $caBundle = config('services.ghn.ca_bundle');
+
+        if ($caBundle && is_file($caBundle)) {
+            return ['verify' => $caBundle];
+        }
+
+        return ['verify' => (bool) config('services.ghn.verify_ssl', true)];
+    }
+
+    private function endpointUrl(string $path): string
+    {
+        $base = rtrim((string) $this->baseUrl(), '/');
+        $path = ltrim($path, '/');
+
+        if (str_contains($base, '/shiip/public-api/v2')) {
+            if (str_starts_with($path, 'v2/')) {
+                return $base.'/'.substr($path, 3);
+            }
+
+            return preg_replace('#/v2$#', '', $base).'/'.$path;
+        }
+
+        if (str_ends_with($base, '/shiip/public-api')) {
+            return $base.'/'.$path;
+        }
+
+        return $base.'/shiip/public-api/'.$path;
     }
 
     private function token(): ?string
@@ -198,13 +305,33 @@ class GhnShippingService
         return config('services.ghn.token');
     }
 
-    private function shopId(PaymentShippingSetting $setting): ?string
+    private function shopId(?PaymentShippingSetting $setting = null): ?string
     {
+        $setting ??= PaymentShippingSetting::current();
+
         return $setting->ghn_shop_id ?: config('services.ghn.shop_id');
     }
 
     private function baseUrl(): ?string
     {
         return config('services.ghn.base_url');
+    }
+
+    private function firstFilled(mixed ...$values): ?string
+    {
+        foreach ($values as $value) {
+            if (filled($value)) {
+                return trim((string) $value);
+            }
+        }
+
+        return null;
+    }
+
+    private function positiveInteger(mixed $value): ?int
+    {
+        $value = (int) $value;
+
+        return $value > 0 ? $value : null;
     }
 }

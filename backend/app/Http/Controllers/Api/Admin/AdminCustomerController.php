@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\KhachHang;
 use App\Support\UserRole;
+use App\Support\OrderStatus;
 use Illuminate\Http\Request;
 
 class AdminCustomerController extends Controller
@@ -39,7 +40,7 @@ class AdminCustomerController extends Controller
                 'join_date'   => $kh->ngay_tao?->format('d/m/Y'),
                 'order_count' => $kh->don_hangs_count,
                 'total_spent' => (float)\App\Models\DonHang::where('ma_kh', $kh->ma_kh)
-                    ->where('trang_thai', 'delivered')
+                    ->whereIn('trang_thai', OrderStatus::FULFILLED)
                     ->sum('tong_tien'),
             ]),
             'meta' => [

@@ -52,6 +52,15 @@ return [
         'shop_id' => env('GHN_SHOP_ID'),
         'base_url' => env('GHN_BASE_URL', 'https://dev-online-gateway.ghn.vn'),
         'verify_ssl' => env('GHN_VERIFY_SSL', true),
+        'ca_bundle' => env('GHN_CA_BUNDLE'),
+        'timeout' => env('GHN_TIMEOUT', 12),
+        'webhook_secret' => env('GHN_WEBHOOK_SECRET'),
+        'from_name' => env('GHN_FROM_NAME'),
+        'from_phone' => env('GHN_FROM_PHONE'),
+        'from_address' => env('GHN_FROM_ADDRESS'),
+        'from_province_id' => env('GHN_FROM_PROVINCE_ID'),
+        'from_district_id' => env('GHN_FROM_DISTRICT_ID'),
+        'from_ward_code' => env('GHN_FROM_WARD_CODE'),
     ],
 
     'cloudinary' => [

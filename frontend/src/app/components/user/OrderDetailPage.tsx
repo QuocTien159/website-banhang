@@ -1,12 +1,18 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
-import { ArrowLeft, Loader2, Star, Upload, X } from 'lucide-react';
+import { ArrowLeft, Clock3, Loader2, Star, Truck, Upload, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { orderService, type ApiOrder, type OrderItem } from '../../services/orderService';
 import { commerceService } from '../../services/commerceService';
 import { useAuth } from '../../store/AppContext';
 import { Button } from '../ui/button';
 import { ImageWithFallback } from '../figma/ImageWithFallback';
+import {
+  ORDER_STATUS_COLORS,
+  ORDER_STATUS_LABELS,
+  SHIPPING_STATUS_COLORS,
+  SHIPPING_STATUS_LABELS,
+} from '../../constants/status';
 
 const formatPrice = (price: number) =>
   new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(price);
@@ -14,6 +20,12 @@ const formatPrice = (price: number) =>
 const STATUS_COLORS: Record<string, string> = {
   pending: 'bg-yellow-100 text-yellow-700',
   confirmed: 'bg-blue-100 text-blue-700',
+  preparing: 'bg-indigo-100 text-indigo-700',
+  ready_to_ship: 'bg-cyan-100 text-cyan-700',
+  handed_to_carrier: 'bg-violet-100 text-violet-700',
+  completed: 'bg-green-100 text-green-700',
+  returning: 'bg-amber-100 text-amber-700',
+  returned: 'bg-slate-100 text-slate-700',
   shipping: 'bg-purple-100 text-purple-700',
   delivered: 'bg-green-100 text-green-700',
   cancelled: 'bg-red-100 text-red-700',
@@ -22,6 +34,12 @@ const STATUS_COLORS: Record<string, string> = {
 const STATUS_LABELS: Record<string, string> = {
   pending: 'Chờ xác nhận',
   confirmed: 'Đã xác nhận',
+  preparing: 'Đang chuẩn bị hàng',
+  ready_to_ship: 'Sẵn sàng bàn giao',
+  handed_to_carrier: 'Đã bàn giao GHN',
+  completed: 'Hoàn tất',
+  returning: 'Đang hoàn hàng',
+  returned: 'Đã hoàn hàng',
   shipping: 'Đang giao hàng',
   delivered: 'Đã giao',
   cancelled: 'Đã hủy',
@@ -102,8 +120,8 @@ export function OrderDetailPage() {
     };
   }, [reviewForm?.previews]);
 
-  const canReview = order?.status === 'delivered';
-  const canReturn = order?.status === 'delivered';
+  const canReview = order?.status === 'completed' || order?.status === 'delivered';
+  const canReturn = order?.status === 'completed' || order?.status === 'delivered';
   const subtotal = useMemo(() => order?.items.reduce((sum, item) => sum + item.subtotal, 0) ?? 0, [order]);
 
   const openReturn = () => {
@@ -284,8 +302,8 @@ export function OrderDetailPage() {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <span className={`w-fit text-sm px-3 py-1 rounded-full font-medium ${STATUS_COLORS[order.status] ?? 'bg-gray-100 text-gray-700'}`}>
-              {STATUS_LABELS[order.status] ?? order.status}
+            <span className={`w-fit text-sm px-3 py-1 rounded-full font-medium ${ORDER_STATUS_COLORS[order.status] ?? STATUS_COLORS[order.status] ?? 'bg-gray-100 text-gray-700'}`}>
+              {ORDER_STATUS_LABELS[order.status] ?? STATUS_LABELS[order.status] ?? order.status}
             </span>
             {canReturn && (
               <Button variant="outline" size="sm" onClick={openReturn}>
@@ -320,6 +338,47 @@ export function OrderDetailPage() {
           </div>
         </div>
       </section>
+
+      {order.shipping_tracking?.tracking_code && (
+        <section className="bg-white border rounded-xl p-5">
+          <div className="flex items-start justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-2">
+              <Truck className="w-5 h-5 text-orange-600" />
+              <div>
+                <h2 className="font-semibold">Theo dõi vận chuyển</h2>
+                <p className="text-xs text-muted-foreground mt-0.5">Giao Hàng Nhanh · Mã vận đơn {order.shipping_tracking.tracking_code}</p>
+              </div>
+            </div>
+            <span className={`text-xs px-2.5 py-1 rounded-full ${SHIPPING_STATUS_COLORS[order.shipping_tracking.status ?? 'unknown'] ?? 'bg-gray-100 text-gray-700'}`}>
+              {SHIPPING_STATUS_LABELS[order.shipping_tracking.status ?? 'unknown'] ?? 'Đang cập nhật'}
+            </span>
+          </div>
+          <div className="grid sm:grid-cols-2 gap-3 mt-4 text-sm">
+            <div className="border rounded-lg p-3">
+              <p className="text-xs text-muted-foreground">Cập nhật gần nhất</p>
+              <p className="mt-1">{order.shipping_tracking.status_updated_at ? new Date(order.shipping_tracking.status_updated_at).toLocaleString('vi-VN') : 'Đang chờ GHN cập nhật'}</p>
+            </div>
+            <div className="border rounded-lg p-3">
+              <p className="text-xs text-muted-foreground">Dự kiến giao</p>
+              <p className="mt-1 flex items-center gap-1"><Clock3 className="w-4 h-4 text-muted-foreground" />{order.shipping_tracking.expected_delivery_at ? new Date(order.shipping_tracking.expected_delivery_at).toLocaleString('vi-VN') : 'GHN sẽ cập nhật sau'}</p>
+            </div>
+          </div>
+          {order.shipping_tracking.events.length > 0 && (
+            <ol className="mt-5 border-l pl-4 ml-1 space-y-3 text-sm">
+              {order.shipping_tracking.events.map((event, index) => (
+                <li key={`${event.at ?? index}-${event.status ?? 'status'}`} className="relative">
+                  <span className="absolute -left-[21px] top-1.5 w-2 h-2 rounded-full bg-orange-500" />
+                  <p>{SHIPPING_STATUS_LABELS[event.status ?? 'unknown'] ?? 'Đang cập nhật vận chuyển'}</p>
+                  <p className="text-xs text-muted-foreground">{event.at ? new Date(event.at).toLocaleString('vi-VN') : ''}{event.note ? ` · ${event.note}` : ''}</p>
+                </li>
+              ))}
+            </ol>
+          )}
+          {['delivery_failed', 'returning', 'returned', 'exception'].includes(order.shipping_tracking.status ?? '') && (
+            <p className="mt-4 text-sm text-muted-foreground">GHN đang cập nhật quá trình giao hàng. Vui lòng liên hệ cửa hàng nếu bạn cần hỗ trợ thêm.</p>
+          )}
+        </section>
+      )}
 
       <section className="bg-white border rounded-xl">
         <div className="p-5 border-b">

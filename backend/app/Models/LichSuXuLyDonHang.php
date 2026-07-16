@@ -25,6 +25,8 @@ class LichSuXuLyDonHang extends Model
         'ma_nguoi_xu_ly',
         'thoi_gian_xu_ly',
         'ghi_chu',
+        'nguon',
+        'ma_van_chuyen',
     ];
 
     protected $casts = [
@@ -34,5 +36,10 @@ class LichSuXuLyDonHang extends Model
     public function nguoiXuLy()
     {
         return $this->belongsTo(KhachHang::class, 'ma_nguoi_xu_ly', 'ma_kh');
+    }
+
+    public function vanDonVanChuyen()
+    {
+        return $this->belongsTo(VanDonVanChuyen::class, 'ma_van_chuyen', 'ma_van_chuyen');
     }
 }

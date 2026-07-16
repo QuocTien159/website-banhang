@@ -8,6 +8,7 @@ use App\Models\ChiTietTraHang;
 use App\Models\DonHang;
 use App\Models\HinhAnhTraHang;
 use App\Models\YeuCauTraHang;
+use App\Support\OrderStatus;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
@@ -71,7 +72,7 @@ class ReturnRequestController extends Controller
             ->where('ma_kh', $user->ma_kh)
             ->firstOrFail();
 
-        if ($order->trang_thai !== 'delivered') {
+        if (!OrderStatus::isFulfilled($order->trang_thai)) {
             throw ValidationException::withMessages(['order_id' => 'Chỉ đơn đã giao thành công mới được yêu cầu trả hàng.']);
         }
 

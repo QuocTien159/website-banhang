@@ -7,6 +7,7 @@ use App\Models\DanhGia;
 use App\Models\DonHang;
 use App\Models\HinhAnhDanhGia;
 use App\Models\LichSuXuLyDanhGia;
+use App\Support\OrderStatus;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -55,7 +56,7 @@ class ReviewController extends Controller
 
         $orders = DonHang::with('chiTiets.bienThe.sanPham.anhChinh')
             ->where('ma_kh', $request->user()->ma_kh)
-            ->where('trang_thai', 'delivered')
+            ->whereIn('trang_thai', OrderStatus::FULFILLED)
             ->get();
 
         return response()->json($orders->flatMap(fn (DonHang $order) => $order->chiTiets->map(function ($item) use ($order, $reviewedProductIds) {
@@ -99,7 +100,7 @@ class ReviewController extends Controller
         $user = $request->user();
         $eligible = DonHang::where('ma_dh', $data['order_id'])
             ->where('ma_kh', $user->ma_kh)
-            ->where('trang_thai', 'delivered')
+            ->whereIn('trang_thai', OrderStatus::FULFILLED)
             ->whereHas('chiTiets.bienThe', fn ($query) => $query->where('ma_sp', $data['product_id']))
             ->exists();
 

@@ -7,6 +7,7 @@ use App\Models\BienTheSanPham;
 use App\Models\HinhAnhSanPham;
 use App\Models\SanPham;
 use App\Services\CloudinaryMediaService;
+use App\Support\OrderStatus;
 use Illuminate\Http\Request;
 
 class ProductController extends Controller
@@ -343,7 +344,7 @@ class ProductController extends Controller
             ->join('bien_the_san_pham as bt', 'ctdh.ma_bien_the', '=', 'bt.ma_bt')
             ->join('don_hang as dh', 'ctdh.ma_dh', '=', 'dh.ma_dh')
             ->where('bt.ma_sp', $productId)
-            ->where('dh.trang_thai', 'delivered')
+            ->whereIn('dh.trang_thai', OrderStatus::FULFILLED)
             ->sum('ctdh.so_luong');
 
         $returned = \DB::table('chi_tiet_tra_hang as ctth')

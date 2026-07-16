@@ -9,6 +9,7 @@ use App\Models\HinhAnhSanPham;
 use App\Models\SanPham;
 use App\Models\ThuocTinh;
 use App\Services\CloudinaryMediaService;
+use App\Support\OrderStatus;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
@@ -574,7 +575,7 @@ class AdminProductController extends Controller
                 ->join('bien_the_san_pham as variants', 'order_items.ma_bien_the', '=', 'variants.ma_bt')
                 ->join('don_hang as orders', 'order_items.ma_dh', '=', 'orders.ma_dh')
                 ->where('variants.ma_sp', $product->ma_sp)
-                ->where('orders.trang_thai', 'delivered')
+                ->whereIn('orders.trang_thai', OrderStatus::FULFILLED)
                 ->sum('order_items.so_luong') - (int) DB::table('chi_tiet_tra_hang as return_items')
                 ->join('yeu_cau_tra_hang as returns', 'return_items.ma_yeu_cau', '=', 'returns.ma_yeu_cau')
                 ->where('return_items.ma_sp', $product->ma_sp)

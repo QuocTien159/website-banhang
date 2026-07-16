@@ -4,6 +4,7 @@ import { Package, User as UserIcon, Phone, Calendar } from 'lucide-react';
 import { useAuth } from '../../store/AppContext';
 import { orderService, type ApiOrder } from '../../services/orderService';
 import { Button } from '../ui/button';
+import { ORDER_STATUS_COLORS, ORDER_STATUS_LABELS } from '../../constants/status';
 
 const formatPrice = (p: number) =>
   new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(p);
@@ -11,6 +12,12 @@ const formatPrice = (p: number) =>
 const STATUS_COLORS: Record<string, string> = {
   pending: 'bg-yellow-100 text-yellow-700',
   confirmed: 'bg-blue-100 text-blue-700',
+  preparing: 'bg-indigo-100 text-indigo-700',
+  ready_to_ship: 'bg-cyan-100 text-cyan-700',
+  handed_to_carrier: 'bg-violet-100 text-violet-700',
+  completed: 'bg-green-100 text-green-700',
+  returning: 'bg-amber-100 text-amber-700',
+  returned: 'bg-slate-100 text-slate-700',
   shipping: 'bg-purple-100 text-purple-700',
   delivered: 'bg-green-100 text-green-700',
   cancelled: 'bg-red-100 text-red-700',
@@ -19,6 +26,12 @@ const STATUS_COLORS: Record<string, string> = {
 const STATUS_LABELS: Record<string, string> = {
   pending: 'Chờ xác nhận',
   confirmed: 'Đã xác nhận',
+  preparing: 'Đang chuẩn bị hàng',
+  ready_to_ship: 'Sẵn sàng bàn giao',
+  handed_to_carrier: 'Đã bàn giao GHN',
+  completed: 'Hoàn tất',
+  returning: 'Đang hoàn hàng',
+  returned: 'Đã hoàn hàng',
   shipping: 'Đang giao hàng',
   delivered: 'Đã giao',
   cancelled: 'Đã hủy',
@@ -108,7 +121,7 @@ export function AccountPage() {
               </div>
               <div>
                 <p className="text-2xl font-bold" style={{ color: '#ea5c21' }}>
-                  {orders.filter(o => o.status === 'delivered').length}
+                  {orders.filter(o => o.status === 'completed' || o.status === 'delivered').length}
                 </p>
                 <p className="text-xs text-muted-foreground">Đã nhận</p>
               </div>
@@ -157,8 +170,8 @@ export function AccountPage() {
                           {formatDate(order.created_at)}
                         </p>
                       </div>
-                      <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${STATUS_COLORS[order.status] || 'bg-gray-100 text-gray-600'}`}>
-                        {STATUS_LABELS[order.status] || order.status}
+                      <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${ORDER_STATUS_COLORS[order.status] || STATUS_COLORS[order.status] || 'bg-gray-100 text-gray-600'}`}>
+                        {ORDER_STATUS_LABELS[order.status] || STATUS_LABELS[order.status] || order.status}
                       </span>
                     </div>
 

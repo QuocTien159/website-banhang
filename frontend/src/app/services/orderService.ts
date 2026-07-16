@@ -9,9 +9,49 @@ export interface OrderItem {
   subtotal: number;
 }
 
+export type OrderLifecycleStatus =
+  | 'pending'
+  | 'confirmed'
+  | 'preparing'
+  | 'ready_to_ship'
+  | 'handed_to_carrier'
+  | 'completed'
+  | 'returning'
+  | 'returned'
+  | 'shipping'
+  | 'delivered'
+  | 'cancelled';
+
+export interface ShippingTimelineEvent {
+  id?: string;
+  source?: string;
+  status: string | null;
+  raw_status?: string | null;
+  at: string | null;
+  note?: string | null;
+  ignored?: boolean;
+}
+
+export interface ShippingTracking {
+  mode: 'ghn' | 'legacy';
+  provider: string;
+  environment?: string;
+  tracking_code: string | null;
+  status: string | null;
+  raw_status?: string | null;
+  status_updated_at?: string | null;
+  shipping_fee?: number | null;
+  expected_delivery_at?: string | null;
+  creation_state?: string;
+  attempts?: number;
+  last_error?: string | null;
+  synced_at?: string | null;
+  events: ShippingTimelineEvent[];
+}
+
 export interface ApiOrder {
   id: string;
-  status: 'pending' | 'confirmed' | 'shipping' | 'delivered' | 'cancelled';
+  status: OrderLifecycleStatus;
   created_at: string;
   total: number;
   subtotal?: number;
@@ -36,6 +76,7 @@ export interface ApiOrder {
   shipping_service_name?: string | null;
   shipping_order_code?: string | null;
   shipping_status?: string | null;
+  shipping_tracking?: ShippingTracking;
   bank?: BankInfo;
   shipping_info: {
     name: string;
@@ -475,8 +516,32 @@ export const adminService = {
     const { data } = await apiClient.get('/admin/orders', { params });
     return data;
   },
-  async updateOrderStatus(orderId: string, status: string) {
-    const { data } = await apiClient.put(`/admin/orders/${orderId}/status`, { status });
+  async getAdminOrder(orderId: string) {
+    const { data } = await apiClient.get(`/admin/orders/${orderId}`);
+    return data;
+  },
+  async updateOrderStatus(orderId: string, status: string, options: { note?: string; confirmStockReturn?: boolean } = {}) {
+    const { data } = await apiClient.put(`/admin/orders/${orderId}/status`, {
+      status,
+      note: options.note,
+      confirm_stock_return: options.confirmStockReturn,
+    });
+    return data;
+  },
+  async handoffOrderToGhn(orderId: string) {
+    const { data } = await apiClient.post(`/admin/orders/${orderId}/shipping/handoff`);
+    return data;
+  },
+  async retryGhnShipment(orderId: string) {
+    const { data } = await apiClient.post(`/admin/orders/${orderId}/shipping/retry`);
+    return data;
+  },
+  async syncGhnShipment(orderId: string) {
+    const { data } = await apiClient.post(`/admin/orders/${orderId}/shipping/sync`);
+    return data;
+  },
+  async requestGhnShipmentCancellation(orderId: string) {
+    const { data } = await apiClient.post(`/admin/orders/${orderId}/shipping/cancel`);
     return data;
   },
   async updateOrderPaymentStatus(orderId: string, paymentStatus: 'paid' | 'payment_not_received') {

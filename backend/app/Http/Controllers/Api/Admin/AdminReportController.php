@@ -19,7 +19,7 @@ use Illuminate\Support\Facades\DB;
 class AdminReportController extends Controller
 {
     // Chỉ đơn đã giao thành công mới được ghi nhận doanh thu; đơn đang xử lý có thể bị hủy/trả.
-    private const REVENUE_STATUSES = [OrderStatus::DELIVERED];
+    private const REVENUE_STATUSES = OrderStatus::FULFILLED;
     private const REVENUE_RETURN_STATUSES = ['received', 'completed'];
 
     /**
@@ -310,8 +310,11 @@ class AdminReportController extends Controller
                 'revenue_statuses' => self::REVENUE_STATUSES,
                 'status_pending' => DonHang::where('trang_thai', 'pending')->count(),
                 'status_confirmed' => DonHang::where('trang_thai', 'confirmed')->count(),
+                'status_preparing' => DonHang::where('trang_thai', OrderStatus::PREPARING)->count(),
+                'status_handed_to_carrier' => DonHang::where('trang_thai', OrderStatus::HANDED_TO_CARRIER)->count(),
                 'status_shipping' => DonHang::where('trang_thai', 'shipping')->count(),
-                'status_delivered' => DonHang::where('trang_thai', 'delivered')->count(),
+                'status_completed' => DonHang::where('trang_thai', OrderStatus::COMPLETED)->count(),
+                'status_delivered' => DonHang::whereIn('trang_thai', OrderStatus::FULFILLED)->count(),
                 'status_cancelled' => DonHang::where('trang_thai', 'cancelled')->count(),
             ],
             'recent_orders' => $recentOrders,
