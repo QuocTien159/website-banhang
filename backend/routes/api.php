@@ -28,6 +28,7 @@ use App\Http\Controllers\Api\PromotionController;
 use App\Http\Controllers\Api\ReturnRequestController;
 use App\Http\Controllers\Api\ReviewController;
 use App\Http\Controllers\Api\ShippingPaymentController;
+use App\Http\Controllers\Api\SupportChatController;
 use App\Http\Controllers\Api\WishlistController;
 use App\Support\UserRole;
 use Illuminate\Support\Facades\Route;
@@ -65,6 +66,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('auth/logout', [AuthController::class, 'logout']);
     Route::get('auth/me', [AuthController::class, 'me']);
     Route::put('auth/profile', [AuthController::class, 'updateProfile']);
+
+    Route::get('support/conversation', [SupportChatController::class, 'customerConversation']);
+    Route::post('support/messages', [SupportChatController::class, 'sendCustomerMessage']);
 
     // Cart
     Route::get('cart', [CartController::class, 'index']);
@@ -110,6 +114,11 @@ Route::middleware('auth:sanctum')->group(function () {
     |------------------------------------------------------------------
     */
     Route::middleware('role:'.UserRole::STAFF.','.UserRole::ADMIN)->prefix('admin')->group(function () {
+        Route::get('support/conversations', [SupportChatController::class, 'index']);
+        Route::get('support/conversations/{id}', [SupportChatController::class, 'show']);
+        Route::post('support/conversations/{id}/claim', [SupportChatController::class, 'claim']);
+        Route::post('support/conversations/{id}/messages', [SupportChatController::class, 'sendStaffMessage']);
+        Route::put('support/conversations/{id}/close', [SupportChatController::class, 'close']);
         // Products
         Route::get('products', [AdminProductController::class, 'index']);
         Route::get('products/options', [AdminProductController::class, 'options']);
@@ -143,6 +152,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('orders/{id}/shipping/sync', [AdminOrderController::class, 'syncGhnShipment']);
         Route::post('orders/{id}/shipping/cancel', [AdminOrderController::class, 'requestGhnShipmentCancellation']);
         Route::middleware('role:'.UserRole::ADMIN)->group(function () {
+            Route::get('support/staff', [SupportChatController::class, 'staffOptions']);
+            Route::put('support/conversations/{id}/transfer', [SupportChatController::class, 'transfer']);
             Route::get('variants', [AdminVariantController::class, 'index']);
             Route::get('variants/{id}', [AdminVariantController::class, 'show']);
             Route::post('variants', [AdminVariantController::class, 'store']);

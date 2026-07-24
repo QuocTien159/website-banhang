@@ -37,6 +37,7 @@ import { AdminStaff } from './components/admin/AdminStaff';
 import { GoogleAuthCallbackPage } from './components/user/GoogleAuthCallbackPage';
 import { ForgotPasswordPage } from './components/user/ForgotPasswordPage';
 import { ResetPasswordPage } from './components/user/ResetPasswordPage';
+import { AdminSupportChat } from './components/admin/AdminSupportChat';
 
 export const router = createBrowserRouter([
   {
@@ -102,6 +103,7 @@ export const router = createBrowserRouter([
       { path: 'payment-shipping', Component: AdminPaymentShippingSettings },
       { path: 'customers', Component: AdminCustomers },
       { path: 'staff', Component: AdminStaff },
+      { path: 'support', Component: AdminSupportChat },
     ],
   },
 ]);

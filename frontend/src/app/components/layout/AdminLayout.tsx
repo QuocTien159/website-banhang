@@ -42,6 +42,7 @@ const inventoryItems = [
 const orderItems = [
   { label: 'Đơn hàng', href: '/admin/orders', icon: ShoppingBag },
   { label: 'Trả hàng', href: '/admin/returns', icon: PackageCheck },
+  { label: 'Hỗ trợ khách hàng', href: '/admin/support', icon: MessageSquare },
 ];
 
 const configItems = [

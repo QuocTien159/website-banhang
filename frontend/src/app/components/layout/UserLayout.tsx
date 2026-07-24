@@ -2,6 +2,7 @@ import { Outlet } from 'react-router';
 import { Header } from './Header';
 import { Footer } from './Footer';
 import { Toaster } from '../ui/sonner';
+import { SupportChatWidget } from '../user/SupportChatWidget';
 
 export function UserLayout() {
   return (
@@ -11,6 +12,7 @@ export function UserLayout() {
         <Outlet />
       </main>
       <Footer />
+      <SupportChatWidget />
       <Toaster richColors position="bottom-right" />
     </div>
   );

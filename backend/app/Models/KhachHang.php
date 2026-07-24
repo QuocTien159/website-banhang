@@ -61,6 +61,11 @@ class KhachHang extends Authenticatable
         return $this->hasMany(DanhGia::class, 'ma_kh', 'ma_kh');
     }
 
+    public function cuocTroChuyenHoTro()
+    {
+        return $this->hasOne(CuocTroChuyenHoTro::class, 'ma_kh', 'ma_kh');
+    }
+
     public function sanPhamYeuThichs()
     {
         return $this->belongsToMany(
