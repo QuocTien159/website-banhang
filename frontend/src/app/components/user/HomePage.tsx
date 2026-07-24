@@ -13,8 +13,8 @@ const formatPrice = (p: number) =>
 const HERO_IMAGE = 'https://images.unsplash.com/photo-1517836357463-d25dfeac3438?w=1400&q=80';
 
 const CATEGORY_IMAGES: Record<string, string> = {
-  'Áo': 'https://images.unsplash.com/photo-1581655353564-df123a1eb820?w=600&q=80',
-  'Quần': 'https://images.unsplash.com/photo-1591195853828-11db59a44f6b?w=600&q=80',
+  'Áo': '/images/home/category-athletic-shirt.png',
+  'Quần': '/images/home/category-training-shorts.png',
   'Giày': 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=600&q=80',
   'Phụ kiện': 'https://images.unsplash.com/photo-1584735935682-2f2b69dff9d2?w=600&q=80',
 };

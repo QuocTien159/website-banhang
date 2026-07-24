@@ -82,7 +82,12 @@ export function LoginPage() {
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
                 <label className="text-sm font-semibold text-gray-700">Mật khẩu</label>
-                <a href="#" className="text-xs font-semibold text-orange-500 hover:text-orange-600 transition-colors">Quên mật khẩu?</a>
+                <Link
+                  to={`/forgot-password${email ? `?email=${encodeURIComponent(email)}` : ''}`}
+                  className="text-xs font-semibold text-orange-500 hover:text-orange-600 transition-colors"
+                >
+                  Quên mật khẩu?
+                </Link>
               </div>
               <div className="relative">
                 <input

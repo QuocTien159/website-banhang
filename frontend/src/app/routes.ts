@@ -35,6 +35,8 @@ import { AdminReturns } from './components/admin/AdminReturns';
 import { AdminPaymentShippingSettings } from './components/admin/AdminPaymentShippingSettings';
 import { AdminStaff } from './components/admin/AdminStaff';
 import { GoogleAuthCallbackPage } from './components/user/GoogleAuthCallbackPage';
+import { ForgotPasswordPage } from './components/user/ForgotPasswordPage';
+import { ResetPasswordPage } from './components/user/ResetPasswordPage';
 
 export const router = createBrowserRouter([
   {
@@ -63,6 +65,14 @@ export const router = createBrowserRouter([
   {
     path: '/register',
     Component: RegisterPage,
+  },
+  {
+    path: '/forgot-password',
+    Component: ForgotPasswordPage,
+  },
+  {
+    path: '/reset-password',
+    Component: ResetPasswordPage,
   },
   {
     path: '/auth/google/callback',

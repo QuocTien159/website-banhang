@@ -10,7 +10,9 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Str;
+use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Validation\ValidationException;
 use GuzzleHttp\Client as GuzzleClient;
 use Laravel\Socialite\Facades\Socialite;
@@ -197,6 +199,82 @@ class AuthController extends Controller
         return response()->json([
             'user'  => $this->formatUser($user),
             'token' => $token,
+        ]);
+    }
+
+    public function forgotPassword(Request $request)
+    {
+        $data = $request->validate([
+            'email' => ['required', 'email', 'max:100'],
+        ]);
+
+        $email = mb_strtolower(trim($data['email']));
+        $customer = KhachHang::where('email', $email)->first();
+
+        if ($customer && $customer->trang_thai && $customer->roleName() === UserRole::CUSTOMER) {
+            $status = Password::broker('customers')->sendResetLink([
+                'email' => $customer->email,
+            ]);
+
+            if ($status !== Password::RESET_LINK_SENT) {
+                Log::warning('Password reset link could not be sent.', [
+                    'customer_id' => $customer->ma_kh,
+                    'status' => $status,
+                ]);
+            }
+        }
+
+        // Do not disclose whether the submitted email belongs to an account.
+        return response()->json([
+            'message' => 'Nếu email hợp lệ thuộc một tài khoản đang hoạt động, hướng dẫn đặt lại mật khẩu đã được gửi.',
+        ]);
+    }
+
+    public function resetPassword(Request $request)
+    {
+        $data = $request->validate([
+            'email' => ['required', 'email', 'max:100'],
+            'token' => ['required', 'string'],
+            'mat_khau' => ['required', 'string', 'min:8', 'confirmed'],
+        ]);
+
+        $email = mb_strtolower(trim($data['email']));
+        $customer = KhachHang::where('email', $email)->first();
+
+        if (! $customer || ! $customer->trang_thai || $customer->roleName() !== UserRole::CUSTOMER) {
+            return response()->json([
+                'message' => 'Liên kết đặt lại mật khẩu không hợp lệ hoặc đã hết hạn.',
+            ], 422);
+        }
+
+        $status = Password::broker('customers')->reset([
+            'email' => $customer->email,
+            'token' => $data['token'],
+            'password' => $data['mat_khau'],
+            'password_confirmation' => $request->input('mat_khau_confirmation'),
+        ], function (KhachHang $customer, string $password) {
+            $customer->forceFill([
+                'mat_khau' => Hash::make($password),
+                'remember_token' => Str::random(60),
+            ])->save();
+
+            $customer->tokens()->delete();
+            event(new PasswordReset($customer));
+        });
+
+        if ($status !== Password::PASSWORD_RESET) {
+            Log::notice('Password reset attempt was rejected.', [
+                'customer_id' => $customer->ma_kh,
+                'status' => $status,
+            ]);
+
+            return response()->json([
+                'message' => 'Liên kết đặt lại mật khẩu không hợp lệ hoặc đã hết hạn.',
+            ], 422);
+        }
+
+        return response()->json([
+            'message' => 'Mật khẩu đã được đặt lại. Vui lòng đăng nhập lại.',
         ]);
     }
 

@@ -9,6 +9,8 @@ frontend/.env.local
 /docs/
 /tools/
 /.codex-doc-work/
+/docx_update/
+/erd_output/
 /*.docx
 
 # Backend

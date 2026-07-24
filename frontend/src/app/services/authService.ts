@@ -19,6 +19,10 @@ interface GoogleExchangeResponse extends AuthResponse {
   return_to: string;
 }
 
+interface MessageResponse {
+  message: string;
+}
+
 const TOKEN_KEY = 'auth_token';
 const USER_KEY = 'auth_user';
 
@@ -78,6 +82,21 @@ export const authService = {
     this.clearAuth();
     localStorage.setItem(TOKEN_KEY, data.token);
     localStorage.setItem(USER_KEY, JSON.stringify(data.user));
+    return data;
+  },
+
+  async requestPasswordReset(email: string): Promise<MessageResponse> {
+    const { data } = await apiClient.post<MessageResponse>('/auth/forgot-password', { email });
+    return data;
+  },
+
+  async resetPassword(payload: {
+    email: string;
+    token: string;
+    mat_khau: string;
+    mat_khau_confirmation: string;
+  }): Promise<MessageResponse> {
+    const { data } = await apiClient.post<MessageResponse>('/auth/reset-password', payload);
     return data;
   },
 

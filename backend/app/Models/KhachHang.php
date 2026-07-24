@@ -3,13 +3,15 @@
 namespace App\Models;
 
 use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 use App\Traits\GeneratesCustomId;
 use App\Support\UserRole;
+use App\Notifications\CustomerResetPasswordNotification;
 
 class KhachHang extends Authenticatable
 {
-    use HasApiTokens, GeneratesCustomId;
+    use HasApiTokens, GeneratesCustomId, Notifiable;
 
     protected $table = 'khach_hang';
     protected $primaryKey = 'ma_kh';
@@ -36,6 +38,11 @@ class KhachHang extends Authenticatable
     public function getAuthPassword(): string
     {
         return $this->mat_khau;
+    }
+
+    public function sendPasswordResetNotification($token): void
+    {
+        $this->notify(new CustomerResetPasswordNotification($token));
     }
 
     // Relationships
